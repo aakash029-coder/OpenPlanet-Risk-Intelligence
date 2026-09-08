@@ -1,7 +1,7 @@
 """
 climate_engine/services/llm_service.py — LLM Analysis Service
 
-Uses Groq API (llama-3.1-8b-instant) for:
+Uses Groq API (openai/gpt-oss-20b) for:
 1. Per-city strategic analysis cards (generate_strategic_analysis)
 2. Single-city research narrative (generate_strategic_analysis_raw)
 3. Two-city comparison narrative (generate_compare_analysis)
@@ -178,6 +178,7 @@ async def generate_strategic_analysis_raw(prompt: str) -> str:
         + "\n\nFOR THIS CALL SPECIFICALLY:\n"
         "- Output exactly ONE paragraph (3–4 sentences). No lists, no bullets, no newlines.\n"
         "- No markdown of any kind.\n"
+        "- Output PLAIN TEXT ONLY. Do NOT wrap your answer in JSON, quotes, or code fences.\n"
         "- Connect temperature, heatwave days, mortality, and economic loss causally "
         "using only the values given.\n"
         "- If a metric is absent from the input, write 'data not specified' in its place.\n"
@@ -186,13 +187,15 @@ async def generate_strategic_analysis_raw(prompt: str) -> str:
 
     try:
         response = await client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.0,
-            max_tokens=220,
+            reasoning_effort="low",
+            include_reasoning=False,
+            max_completion_tokens=1024,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -240,6 +243,7 @@ async def generate_compare_analysis(
         + "\n\nFOR THIS CALL SPECIFICALLY:\n"
         "- Output exactly ONE paragraph (3–4 sentences). No lists, no bullets, no newlines.\n"
         "- No markdown of any kind.\n"
+        "- Output PLAIN TEXT ONLY. Do NOT wrap your answer in JSON, quotes, or code fences.\n"
         "- State clearly which city has higher absolute climate risk.\n"
         "- Quantify the difference using the exact numbers provided (e.g. delta in deaths, "
         "delta in temperature, delta in economic loss).\n"
@@ -258,13 +262,15 @@ async def generate_compare_analysis(
 
     try:
         response = await client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="openai/gpt-oss-20b",
             messages=[
                 {"role": "system", "content": system_msg},
                 {"role": "user", "content": user_msg},
             ],
             temperature=0.0,
-            max_tokens=260,
+            reasoning_effort="low",
+            include_reasoning=False,
+            max_completion_tokens=1536,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
