@@ -1,6 +1,6 @@
 # Privacy Policy - OpenPlanet
 
-Last updated: [DATE]
+Last updated: 2026-10-29
 
 ## What the core analysis uses
 Searching for a city and viewing its climate risk projections does not require an account. We use only the location (latitude and longitude) for real-time climate risk processing, and it is not linked to an identity.
