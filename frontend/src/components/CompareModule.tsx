@@ -6,6 +6,15 @@ import {
 } from "@/context/ClimateDataContext";
 import { SideBySideMathModal } from './dashboard/SideBySideMathModal';
 import { CompareTable, type CityResult } from './dashboard/CompareTable';
+import { MapPin, X, Loader2 } from 'lucide-react';
+import {
+  searchLocalCities,
+  fetchRemoteGeocodeCandidates,
+  mergeSuggestions,
+  getCachedSuggestions,
+  setCachedSuggestions,
+  type CitySuggestion,
+} from '@/lib/citySearch';
 
 function fmt(n: number | null | undefined, d = 1): string {
   if (n == null || isNaN(n)) return "—";
@@ -145,8 +154,39 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
   const { primaryData, primaryLoading, fetchPrimaryCity, canopy, setCanopy, coolRoof: albedo, setCoolRoof: setAlbedo } = useClimateData();
 
   const [searchQuery2, setSearchQuery2] = useState("");
-  const [suggestions2, setSuggestions2] = useState<{ id: string; name: string; country: string; latitude: number; longitude: number }[]>([]);
+  const [suggestions2, setSuggestions2] = useState<CitySuggestion[]>([]);
   const [city2Geo, setCity2Geo]         = useState<{ lat: number; lng: number; display_name: string } | null>(null);
+  const [highlightedIndex2, setHighlightedIndex2] = useState(-1);
+  const [isSearchingRemote2, setIsSearchingRemote2] = useState(false);
+  const remoteAbortRef2 = useRef<AbortController | null>(null);
+  const activeQueryRef2 = useRef<string>('');
+  const containerRef2 = useRef<HTMLDivElement>(null);
+  const inputRef2 = useRef<HTMLInputElement>(null);
+
+  // Dismiss dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef2.current && !containerRef2.current.contains(e.target as Node)) {
+        setSuggestions2([]);
+        setHighlightedIndex2(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Reset highlight on suggestion update
+  useEffect(() => {
+    setHighlightedIndex2(-1);
+  }, [suggestions2]);
+
+  const selectCity2 = (city: CitySuggestion) => {
+    const label = city.display_name || [city.name, city.country].filter(Boolean).join(', ');
+    setSearchQuery2(label);
+    setCity2Geo({ display_name: label, lat: city.latitude, lng: city.longitude });
+    setSuggestions2([]);
+    setHighlightedIndex2(-1);
+  };
 
   const savedState = typeof window !== 'undefined' ? (() => { try { return JSON.parse(localStorage.getItem('op_sync_state') || '{}'); } catch { return {}; } })() : {};
   const [ssp, setSsp]                 = useState(() => primaryData?.ssp || savedState.ssp || "SSP2-4.5");
@@ -186,18 +226,56 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
   }, [ssp, canopy, albedo]); // intentionally omit primaryData/fetchPrimaryCity
 
   useEffect(() => {
-    if (city2Geo || searchQuery2.length <= 2) { setSuggestions2([]); return; }
+    const q = searchQuery2.trim();
+    activeQueryRef2.current = q;
+
+    if (!q || (city2Geo && city2Geo.display_name?.trim() === q)) {
+      setSuggestions2([]);
+      setIsSearchingRemote2(false);
+      if (remoteAbortRef2.current) {
+        remoteAbortRef2.current.abort();
+        remoteAbortRef2.current = null;
+      }
+      return;
+    }
+
+    const cached = getCachedSuggestions(q);
+    const localMatches = cached ?? searchLocalCities(q, 8);
+    setSuggestions2(localMatches);
+
+    if (q.length < 3 || cached) {
+      setIsSearchingRemote2(false);
+      return;
+    }
+
+    if (remoteAbortRef2.current) {
+      remoteAbortRef2.current.abort();
+    }
+    const controller = new AbortController();
+    remoteAbortRef2.current = controller;
+
     const timer = setTimeout(async () => {
-      const data = await fetchNominatimSafe(searchQuery2);
-      setSuggestions2(data.map((c) => ({
-        id:        c.place_id,
-        name:      c.name || c.display_name.split(',')[0],
-        country:   c.display_name.split(',').pop()?.trim() ?? '',
-        latitude:  parseFloat(c.lat),
-        longitude: parseFloat(c.lon),
-      })));
-    }, 600);
-    return () => clearTimeout(timer);
+      setIsSearchingRemote2(true);
+      try {
+        const remoteResults = await fetchRemoteGeocodeCandidates(q, controller.signal);
+        if (activeQueryRef2.current === q && !controller.signal.aborted) {
+          const merged = mergeSuggestions(localMatches, remoteResults, 8);
+          setSuggestions2(merged);
+          setCachedSuggestions(q, merged);
+        }
+      } catch {
+        // Silently handled
+      } finally {
+        if (activeQueryRef2.current === q) {
+          setIsSearchingRemote2(false);
+        }
+      }
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [searchQuery2, city2Geo]);
 
   const handleCompare = async () => {
@@ -344,37 +422,114 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
               )}
             </span>
           </div>
-          <div className="relative max-w-md">
-            <input
-              type="text"
-              value={searchQuery2}
-              onChange={(e) => { setSearchQuery2(e.target.value); if (city2Geo) setCity2Geo(null); }}
-              placeholder="Type a city name…"
-              className="w-full px-4 py-2.5 text-[11px] font-mono text-white placeholder-slate-600 outline-none"
-              style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}
-            />
-            {city2Geo && (
+          <div className="relative max-w-md" ref={containerRef2}>
+            <div className="relative">
+              <input
+                ref={inputRef2}
+                type="text"
+                value={searchQuery2}
+                onChange={(e) => {
+                  setSearchQuery2(e.target.value);
+                  if (city2Geo) setCity2Geo(null);
+                }}
+                onKeyDown={(e) => {
+                  if (suggestions2.length === 0) {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleCompare();
+                    }
+                    return;
+                  }
+
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setHighlightedIndex2((prev) => (prev < suggestions2.length - 1 ? prev + 1 : 0));
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    setHighlightedIndex2((prev) => (prev > 0 ? prev - 1 : suggestions2.length - 1));
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const target = highlightedIndex2 >= 0 ? suggestions2[highlightedIndex2] : suggestions2[0];
+                    if (target) {
+                      selectCity2(target);
+                    } else {
+                      handleCompare();
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setSuggestions2([]);
+                    setHighlightedIndex2(-1);
+                  }
+                }}
+                placeholder="Search comparison city (e.g. Cairo, Paris, Tokyo)..."
+                className="w-full px-4 pr-16 py-2.5 text-[11px] font-mono text-white placeholder-slate-600 outline-none"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--hairline)' }}
+              />
+
               <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span className="text-[8px] font-mono text-emerald-400 uppercase tracking-widest">Locked</span>
-              </div>
-            )}
-            {suggestions2.length > 0 && !city2Geo && (
-              <div className="absolute top-full left-0 w-full mt-1 border border-white/[0.06] z-[9999] max-h-48 overflow-y-auto shadow-2xl" style={{ background: '#0a0a0f' }}>
-                {suggestions2.map((city, idx) => (
-                  <div
-                    key={`${city.id}-${idx}`}
-                    onClick={() => {
-                      const n = `${city.name}, ${city.country}`;
-                      setSearchQuery2(n);
-                      setCity2Geo({ display_name: n, lat: city.latitude, lng: city.longitude });
-                      setSuggestions2([]);
-                    }}
-                    className="px-4 py-2.5 text-[10px] font-mono text-slate-400 hover:bg-white/[0.04] hover:text-white cursor-pointer transition-colors border-b border-white/[0.04] last:border-0"
-                  >
-                    {city.name}, <span className="opacity-40">{city.country}</span>
+                {isSearchingRemote2 && (
+                  <Loader2 size={12} className="animate-spin text-cyan-400" />
+                )}
+                {city2Geo ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className="text-[8px] font-mono text-emerald-400 uppercase tracking-widest">Locked</span>
                   </div>
-                ))}
+                ) : searchQuery2 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery2('');
+                      setCity2Geo(null);
+                      setSuggestions2([]);
+                      setHighlightedIndex2(-1);
+                      inputRef2.current?.focus();
+                    }}
+                    className="text-slate-500 hover:text-white transition-colors p-1"
+                    aria-label="Clear city search"
+                  >
+                    <X size={12} />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Google Maps style suggestions dropdown */}
+            {suggestions2.length > 0 && !city2Geo && (
+              <div
+                className="absolute top-full left-0 w-full mt-1 bg-[#090d16] border border-white/10 z-[9999] max-h-64 overflow-y-auto shadow-2xl custom-scrollbar"
+                role="listbox"
+              >
+                {suggestions2.map((city, idx) => {
+                  const isHighlighted = highlightedIndex2 === idx;
+                  const secondary = [city.state, city.country].filter(Boolean).join(', ');
+                  return (
+                    <div
+                      key={`${city.id}-${idx}`}
+                      role="option"
+                      aria-selected={isHighlighted}
+                      onMouseEnter={() => setHighlightedIndex2(idx)}
+                      onClick={() => selectCity2(city)}
+                      className={`flex items-center gap-2.5 px-3.5 py-2.5 text-[11px] cursor-pointer border-b border-white/[0.04] last:border-0 transition-colors duration-100 ${
+                        isHighlighted
+                          ? 'bg-white/[0.08] text-white border-l-2 border-l-cyan-400 pl-3'
+                          : 'text-slate-300 hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <MapPin size={12} className={isHighlighted ? 'text-cyan-400 shrink-0' : 'text-slate-500 shrink-0'} />
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="font-semibold text-white truncate text-[11px] leading-tight">
+                          {city.name}
+                        </span>
+                        {secondary && (
+                          <span className="text-[9px] font-mono text-slate-400 truncate mt-0.5">
+                            {secondary}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

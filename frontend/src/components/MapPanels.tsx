@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fmtLoss } from './MapHelpers';
 import { useClimateData, formatDeathsRange, formatEconomicRange } from '@/context/ClimateDataContext';
 import { formatCoord } from '@/lib/format';
 import { ConfidenceDot } from '@/components/ui/primitives';
+import { MapPin, X, Loader2 } from 'lucide-react';
 
 export interface SuggestionCity {
   id:          string | number;
@@ -11,6 +12,8 @@ export interface SuggestionCity {
   latitude:    number;
   longitude:   number;
   display_name?: string;
+  state?:      string;
+  source?:     string;
 }
 
 export interface PanelSelectedCity {
@@ -57,6 +60,7 @@ interface LeftPanelProps {
   coolRoof:              number;
   handleMitigationChange:(type: 'canopy' | 'coolRoof', value: number) => void;
   isSimulating:          boolean;
+  isSearchingRemote?:    boolean;
 }
 
 /* ─── Shared sub-components ─── */
@@ -110,14 +114,49 @@ const AuditButton = ({ label, onClick }: { label: string; onClick: () => void })
 export const LeftPanel = ({
   selectedCity, searchQuery, setSearchQuery, suggestions, setSuggestions, setSelectedCity,
   year, setYear, ssp, setSsp, handleInitialize, isLoading, isInitialized, canGenerate,
-  canopy, coolRoof, handleMitigationChange, isSimulating,
+  canopy, coolRoof, handleMitigationChange, isSimulating, isSearchingRemote,
 }: LeftPanelProps) => {
   const [slowLoad, setSlowLoad] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (!isLoading) { setSlowLoad(false); return; }
     const t = setTimeout(() => setSlowLoad(true), 8000);
     return () => clearTimeout(t);
   }, [isLoading]);
+
+  // Dismiss dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setSuggestions([]);
+        setHighlightedIndex(-1);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [setSuggestions]);
+
+  // Reset highlight index when suggestion list updates
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [suggestions]);
+
+  const selectCity = (city: SuggestionCity) => {
+    const label = city.display_name || [city.name, city.country].filter(Boolean).join(', ');
+    setSelectedCity({
+      locationQuery: label,
+      name:          city.name,
+      country:       city.country,
+      lat:           city.latitude,
+      lng:           city.longitude,
+    });
+    setSearchQuery(label);
+    setSuggestions([]);
+    setHighlightedIndex(-1);
+  };
 
   return (
     /* Mobile: order-last so map renders above; bounded to 75vh so sliders are visible
@@ -136,51 +175,120 @@ export const LeftPanel = ({
 
         {/* LOCATION SEARCH */}
         <div className="space-y-2">
-          <label className="text-[8px] font-mono uppercase tracking-[0.2em] font-bold flex items-center" style={{ color: 'var(--muted)' }}>
-            Location
-          </label>
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--muted)' }}>
+          <div className="flex items-center justify-between">
+            <label className="text-[8px] font-mono uppercase tracking-[0.2em] font-bold flex items-center" style={{ color: 'var(--muted)' }}>
+              Location
+            </label>
+            {isSearchingRemote && (
+              <span className="flex items-center gap-1 text-[8px] font-mono text-cyan-400">
+                <Loader2 size={9} className="animate-spin" />
+                <span>Searching…</span>
+              </span>
+            )}
+          </div>
+          <div className="relative" ref={containerRef}>
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--muted)' }}>
                 <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
               </svg>
             </div>
             <input
+              ref={inputRef}
               type="text"
-              placeholder="Search city..."
+              placeholder="Search city (e.g. Cairo, Tokyo, Paris)..."
               value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); if (selectedCity) setSelectedCity(null); }}
-              className="w-full pl-9 pr-3 text-[11px] outline-none transition-all duration-200 placeholder:opacity-30 rounded-none"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (selectedCity) setSelectedCity(null);
+              }}
+              onKeyDown={(e) => {
+                if (suggestions.length === 0) {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleInitialize();
+                  }
+                  return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setHighlightedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const target = highlightedIndex >= 0 ? suggestions[highlightedIndex] : suggestions[0];
+                  if (target) {
+                    selectCity(target);
+                  } else {
+                    handleInitialize();
+                  }
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setSuggestions([]);
+                  setHighlightedIndex(-1);
+                }
+              }}
+              className="w-full pl-9 pr-8 text-[11px] outline-none transition-all duration-200 placeholder:opacity-30 rounded-none font-mono"
               style={{
                 background: 'rgba(255,255,255,0.03)',
                 border: '1px solid var(--hairline)',
                 color: 'var(--text)',
                 height: '40px',
-                padding: '0 12px 0 36px',
+                padding: '0 30px 0 34px',
               }}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCity(null);
+                  setSuggestions([]);
+                  setHighlightedIndex(-1);
+                  inputRef.current?.focus();
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white transition-colors p-1"
+                aria-label="Clear location search"
+              >
+                <X size={12} />
+              </button>
+            )}
+
+            {/* Google Maps style suggestions dropdown */}
             {suggestions.length > 0 && !selectedCity && (
-              <div className="absolute top-full left-0 w-full mt-1.5 bg-black border border-white/[0.05] overflow-hidden z-[9999] shadow-2xl">
+              <div
+                className="absolute top-full left-0 w-full mt-1 bg-[#090d16] border border-white/10 overflow-hidden z-[9999] shadow-2xl rounded-none max-h-72 overflow-y-auto custom-scrollbar"
+                role="listbox"
+              >
                 {suggestions.map((city, idx) => {
-                  const label = [city.name, city.country].filter(Boolean).join(', ');
+                  const isHighlighted = highlightedIndex === idx;
+                  const secondary = [city.state, city.country].filter(Boolean).join(', ');
                   return (
                     <div
                       key={`${city.id}-${idx}`}
-                      onClick={() => {
-                        setSelectedCity({
-                          locationQuery: label,
-                          name:          city.name,
-                          country:       city.country,
-                          lat:           city.latitude,
-                          lng:           city.longitude,
-                        });
-                        setSearchQuery(label);
-                        setSuggestions([]);
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2.5 text-[11px] text-slate-300 hover:bg-white/[0.05] hover:text-white cursor-pointer border-b border-white/[0.04] last:border-0 transition-colors duration-150"
+                      role="option"
+                      aria-selected={isHighlighted}
+                      onMouseEnter={() => setHighlightedIndex(idx)}
+                      onClick={() => selectCity(city)}
+                      className={`flex items-center gap-2.5 px-3 py-2 text-[11px] cursor-pointer border-b border-white/[0.04] last:border-0 transition-colors duration-100 ${
+                        isHighlighted
+                          ? 'bg-white/[0.08] text-white border-l-2 border-l-cyan-400 pl-2.5'
+                          : 'text-slate-300 hover:bg-white/[0.04]'
+                      }`}
                     >
-                      <div className="w-1 h-1 rounded-full bg-slate-600 shrink-0" />
-                      <span className="truncate">{label}</span>
+                      <MapPin size={12} className={isHighlighted ? 'text-cyan-400 shrink-0' : 'text-slate-500 shrink-0'} />
+                      <div className="flex flex-col min-w-0 flex-1">
+                        <span className="font-semibold text-white truncate text-[11px] leading-tight">
+                          {city.name}
+                        </span>
+                        {secondary && (
+                          <span className="text-[9px] font-mono text-slate-400 truncate mt-0.5">
+                            {secondary}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

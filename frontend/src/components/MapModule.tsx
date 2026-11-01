@@ -9,6 +9,13 @@ import { buildReportModel } from '@/lib/reportData';
 import MapCanvas from './map/MapCanvas';
 import HistoricalErasPanel from './map/HistoricalErasPanel';
 import { buildHexLayer } from './map/hexLayer';
+import {
+  searchLocalCities,
+  fetchRemoteGeocodeCandidates,
+  mergeSuggestions,
+  getCachedSuggestions,
+  setCachedSuggestions,
+} from '@/lib/citySearch';
 
 type SelectedCity = PanelSelectedCity;
 type ViewState = { longitude: number; latitude: number; zoom: number; pitch: number; bearing: number };
@@ -22,6 +29,9 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<SuggestionCity[]>([]);
   const [selectedCity, setSelectedCity] = useState<SelectedCity | null>(null);
+  const [isSearchingRemote, setIsSearchingRemote] = useState(false);
+  const remoteAbortRef = useRef<AbortController | null>(null);
+  const activeQueryRef = useRef<string>('');
   const [viewState, setViewState] = useState<ViewState>({ longitude: 0, latitude: 20, zoom: 1.8, pitch: 0, bearing: 0 });
 
   const savedState = typeof window !== 'undefined' ? (() => { try { return JSON.parse(localStorage.getItem('op_sync_state') || '{}'); } catch { return {}; } })() : {};
@@ -168,17 +178,60 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
   }, [searchQuery, isInitialized, selectedCity?.locationQuery]);
 
   useEffect(() => {
-    const t = setTimeout(async () => {
-      if (searchQuery.length > 2 && !selectedCity) {
-        try {
-          const res = await fetch(`/api/geocode-search?q=${encodeURIComponent(searchQuery)}`, { headers: { 'Accept': 'application/json' } });
-          if (!res.ok) return;
-          const data: { results: Array<{ id: string; name: string; display_name: string; country: string; country_code: string; latitude: number; longitude: number; source: string; }> } = await res.json();
-          setSuggestions((data.results ?? []).map((c) => ({ id: c.id, name: c.name, display_name: c.display_name, country: c.country, latitude: c.latitude, longitude: c.longitude })));
-        } catch { /* Geocode search failed */ }
-      } else { setSuggestions([]); }
-    }, 600);
-    return () => clearTimeout(t);
+    const q = searchQuery.trim();
+    activeQueryRef.current = q;
+
+    // If query is empty or user has selected a city matching current query, clear suggestions
+    if (!q || (selectedCity && (selectedCity.locationQuery?.trim() === q || selectedCity.name?.toLowerCase() === q.toLowerCase()))) {
+      setSuggestions([]);
+      setIsSearchingRemote(false);
+      if (remoteAbortRef.current) {
+        remoteAbortRef.current.abort();
+        remoteAbortRef.current = null;
+      }
+      return;
+    }
+
+    // 1. Instant local search (0ms)
+    const cached = getCachedSuggestions(q);
+    const localMatches = cached ?? searchLocalCities(q, 8);
+    setSuggestions(localMatches);
+
+    // 2. Short queries (< 3 chars) or cached queries skip remote call
+    if (q.length < 3 || cached) {
+      setIsSearchingRemote(false);
+      return;
+    }
+
+    // 3. Debounced (180ms) remote lookup with cancellation
+    if (remoteAbortRef.current) {
+      remoteAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    remoteAbortRef.current = controller;
+
+    const timer = setTimeout(async () => {
+      setIsSearchingRemote(true);
+      try {
+        const remoteResults = await fetchRemoteGeocodeCandidates(q, controller.signal);
+        if (activeQueryRef.current === q && !controller.signal.aborted) {
+          const merged = mergeSuggestions(localMatches, remoteResults, 8);
+          setSuggestions(merged);
+          setCachedSuggestions(q, merged);
+        }
+      } catch {
+        // Silently handled: keep local matches
+      } finally {
+        if (activeQueryRef.current === q) {
+          setIsSearchingRemote(false);
+        }
+      }
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [searchQuery, selectedCity]);
 
   useEffect(() => {
@@ -271,6 +324,7 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
           canGenerate={canGenerate} canopy={canopy} coolRoof={coolRoof}
           handleMitigationChange={(t: 'canopy' | 'coolRoof', v: number) => t === 'canopy' ? setCanopy(v) : setCoolRoof(v)}
           isSimulating={isSimulating}
+          isSearchingRemote={isSearchingRemote}
         />
         <div className="flex-1 flex flex-col gap-1.5 min-w-0 min-h-0 w-full">
           <MapCanvas
