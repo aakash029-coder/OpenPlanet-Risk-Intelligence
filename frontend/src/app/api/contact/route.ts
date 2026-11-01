@@ -229,11 +229,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // No delivery provider configured
+    // No delivery provider configured or all providers failed
+    const isPrivacyRequest = category === "Privacy Request";
+    const errorMessage = isPrivacyRequest
+      ? "Contact delivery gateway is not configured on this deployment. To exercise your privacy rights, please email maintainers directly at aakash@openplanetrisk.com."
+      : "Contact delivery is not configured on this deployment. For inquiries or support, please reach out to the project maintainers directly at aakash@openplanetrisk.com.";
+
     return NextResponse.json(
-      {
-        error: "Contact delivery is not configured on this deployment. Please reach out to the deployment owner.",
-      },
+      { error: errorMessage },
       { status: 503 }
     );
   } catch {

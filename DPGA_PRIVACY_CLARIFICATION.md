@@ -20,7 +20,7 @@ Following a code-level architectural review, concrete remediations were implemen
 - **Hardened Contact Gateway:** Added 64KB request body limits, client-IP sliding-window rate limiting (max 5 requests / 10 minutes), input sanitization, category allowlisting, and established a dedicated "Privacy Request" category while advising users against posting PII to public GitHub issues.
 - **Token Minimization:** Removed upstream OAuth provider access tokens from NextAuth JWT session objects, restricting session data strictly to essential application state.
 
-All 422 Python pytest suite tests, 12 Node.js contact/consent unit tests, TypeScript type checks (`npx tsc --noEmit`), and the Next.js production build (`next build`) pass with 0 errors.
+All 422 Python pytest suite tests, 23 Node.js frontend tests (14 contact/consent unit tests and 9 instant city search tests), TypeScript type checks (`npx tsc --noEmit`), and the Next.js production build (`npm run build`) pass with 0 errors.
 
 ---
 
@@ -39,7 +39,7 @@ All 422 Python pytest suite tests, 12 Node.js contact/consent unit tests, TypeSc
 | **Authentication / Session Data** | NextAuth uses JWT session cookies. External OAuth provider access tokens are excluded from JWT tokens. No user database is maintained. | [`frontend/src/app/api/auth/[...nextauth]/route.ts`](file:///Users/aakash/openplanet-climate/frontend/src/app/api/auth/[...nextauth]/route.ts#L68-L80) | **VERIFIED IN CODE** | None. |
 | **Security Controls** | Layered defenses implemented: SlowAPI rate limiting, Next.js IP rate limiting, OWASP security headers (HSTS in production, CSP, X-Frame-Options: DENY, nosniff, Referrer-Policy), CORS allowlists, and Pydantic validation. | [`climate_engine/api/security.py`](file:///Users/aakash/openplanet-climate/climate_engine/api/security.py#L35-L50)<br>[`tests/test_privacy_security.py`](file:///Users/aakash/openplanet-climate/tests/test_privacy_security.py#L91-L115) | **VERIFIED IN CODE** | Production domain SSL/TLS certificate managed by host. |
 | **Data Deletion & Retention** | Browser data can be cleared immediately by users. Server caches auto-expire or evict without linking to user identities. The codebase does not maintain user account tables, so no automated account deletion API is applicable. | [`PRIVACY.md`](file:///Users/aakash/openplanet-climate/PRIVACY.md#L134-L140)<br>[`frontend/src/app/privacy/page.tsx`](file:///Users/aakash/openplanet-climate/frontend/src/app/privacy/page.tsx#L320-L334) | **VERIFIED IN CODE** | Deletion of forwarded webhook/email data is governed by external provider retention policies. |
-| **Credential Hygiene & History** | Local `.env` and `hf_space/secrets/` are ignored by git (`.gitignore`). Historical commit inspection identified a legacy `gee-service-account.json` added in commit `2a47f779` and deleted in `afa7221f`. Exposure cannot be ruled out from git history. | [`.gitignore`](file:///Users/aakash/openplanet-climate/.gitignore#L14-L24)<br>Git commit `2a47f779fb1a6c4cc69f9da1a49c247d87aec5e8` | **OWNER CONFIRMATION REQUIRED** | Project owner MUST revoke/rotate this historical Google Earth Engine service account key in the Google Cloud Console immediately if not already completed. |
+| **Credential Hygiene & History** | Local `.env` and `hf_space/secrets/` are ignored by git (`.gitignore`). Historical commit inspection identified a legacy `gee-service-account.json` (Project: `gen-lang-client-0975553683`, Service Account: `climate-engine@gen-lang-client-0975553683.iam.gserviceaccount.com`, Key ID: `f8b88c06...`) added in commit `2a47f779` and deleted in `afa7221f`. Zero GEE dependencies or runtime calls remain in the engine, and untracked worktree files on local storage have been purged. Exposure in git history cannot be ruled out. | [`.gitignore`](file:///Users/aakash/openplanet-climate/.gitignore#L14-L24)<br>Git commit `2a47f779fb1a6c4cc69f9da1a49c247d87aec5e8` | **OWNER CONFIRMATION REQUIRED** | Project owner MUST verify in the Google Cloud Console that this legacy service account key (`f8b88c06...`) is deleted or disabled. |
 
 ---
 
@@ -85,13 +85,13 @@ The following safe, necessary code and documentation improvements have been impl
 
 ### 3.6 Automated Verification Suites
 - **File:** [`tests/test_privacy_security.py`](file:///Users/aakash/openplanet-climate/tests/test_privacy_security.py)  
-  **Coverage:** 7 automated pytest tests covering disk cache roundtrips, TTL expiry, LRU eviction under file caps, in-memory bounded cache sizing, BoundedTTLCache expiration, OWASP security headers, HSTS in production, and API key log redaction.
-- **File:** [`frontend/tests/consent_and_contact.test.mjs`](file:///Users/aakash/openplanet-climate/frontend/tests/consent_and_contact.test.mjs)  
-  **Coverage:** 12 automated unit tests covering initial visit consent nullability, granted state persistence, denied state persistence, `ga-disable` flag setting on withdrawal, `_ga*` cookie regex cleanup, contact input validation, oversized field rejection, category allowlisting, and sliding window rate limiting.
+  **Coverage:** 7 automated pytest tests covering disk cache roundtrips, TTL expiry, LRU eviction under file caps, in-memory bounded cache sizing, BoundedTTLCache expiration, OWASP security headers, HSTS in production, and API key log redaction (all part of the 422-test backend suite).
+- **Files:** [`frontend/tests/consent_and_contact.test.mjs`](file:///Users/aakash/openplanet-climate/frontend/tests/consent_and_contact.test.mjs) & [`frontend/tests/city_search.test.mjs`](file:///Users/aakash/openplanet-climate/frontend/tests/city_search.test.mjs)  
+  **Coverage:** 23 automated Node.js unit tests (14 covering initial visit consent nullability, granted state persistence, denied state persistence, `ga-disable` flag setting on withdrawal, `_ga*` cookie regex cleanup, contact input validation, oversized field rejection, category allowlisting, sliding window rate limiting, and 503 maintainer direct fallback messaging; and 9 covering instant hierarchical city search and autocomplete).
 
 ### 3.7 CI Pipeline & Environment Documentation
 - **File:** [`.github/workflows/main.yml`](file:///Users/aakash/openplanet-climate/.github/workflows/main.yml)  
-  **Changes:** Replaced placeholder echo step with a real GitHub Actions CI pipeline executing both backend pytest suite (`pytest tests/`) and frontend checks (`npm test`, `npx tsc --noEmit`, `npm run build`) on push/PR.
+  **Changes:** Real GitHub Actions CI pipeline executing the backend pytest suite (`pytest tests/`), Hugging Face science core sync verification (`scripts/check_hf_sync.py`), and frontend checks (`npm test`, `npx tsc --noEmit`) on push and pull requests.
 - **File:** [`.env.example`](file:///Users/aakash/openplanet-climate/.env.example)  
   **Changes:** Created a clean, comprehensive environment reference at the repository root documenting all backend, caching, optional weather tiers, LLM analysis, NextAuth, and contact gateway variables with zero secrets.
 
@@ -100,10 +100,13 @@ The following safe, necessary code and documentation improvements have been impl
 ## 4. Remaining Limitations
 
 The following items cannot be fully verified from repository source code alone and represent operational boundaries:
-1. **Hosting Platform Access Log Retention:** Hugging Face Spaces and Vercel retain edge web server access logs (client IP, request timestamp, HTTP headers). The duration of log retention is determined by the deployment owner's hosting tier agreements and platform settings, not by code in this repository.
+1. **Hosting Platform Access Log Retention:** Hugging Face Spaces and Vercel retain edge web server access logs (client IP, request timestamp, HTTP headers).
+   - *Vercel:* Standard function logs have default retention of 1 hour (Hobby tier) or 1 day (Pro tier), extendable up to 7 days with custom log drains.
+   - *Hugging Face Spaces:* Live Docker container runtime logs are held ephemerally and reset upon container restart or deployment rebuild.
+   - The application itself implements no persistent access log database.
 2. **Third-Party Provider Retention Policies:** Data transmitted to external APIs (Open-Meteo, NASA POWER, UN Population Division, World Bank, and email delivery providers) is subject to the independent data-retention and privacy policies of those external organizations.
-3. **Contact Delivery Secret Provisioning:** In local or default environments, if `RESEND_API_KEY`, `CONTACT_WEBHOOK_URL`, and `CONTACT_FORMSPREE_ENDPOINT` are unset, the contact form returns HTTP 503. The project owner must configure at least one destination in production.
-4. **Historical Credential in Git History:** An Earth Engine service account key existed in legacy commit `2a47f779` prior to deletion in `afa7221f`. Even though it is absent from the working tree and `.gitignore` prevents future secret commits, git history retains the commit. The owner must confirm revocation in Google Cloud Console.
+3. **Contact Delivery Secret Provisioning:** In local or default environments, if `RESEND_API_KEY`, `CONTACT_WEBHOOK_URL`, and `CONTACT_FORMSPREE_ENDPOINT` are unset, the contact form returns HTTP 503 with maintainer contact email `aakash@openplanetrisk.com`. The project owner must configure at least one destination in production for automated routing.
+4. **Historical Credential in Git History:** An Earth Engine service account key existed in legacy commit `2a47f779` prior to deletion in `afa7221f`. Even though it is absent from the working tree and `.gitignore` prevents future secret commits, git history retains the commit. The owner must confirm key revocation in Google Cloud Console.
 5. **Live HTTPS/TLS Enforcement & Domain Certificates:** While code emits `Strict-Transport-Security` headers in production mode, SSL/TLS certificate installation, cipher suites, and automatic HTTP-to-HTTPS redirects are handled by the edge host/DNS provider and must be verified on the live production URL.
 
 ---
@@ -112,10 +115,17 @@ The following items cannot be fully verified from repository source code alone a
 
 Prior to final submission of this clarification package to the DPGA reviewer, the project owner should complete the following verification checklist:
 
-- [ ] **1. Revoke / Rotate Historical GEE Key:** Verify in the Google Cloud Console that the legacy service account key associated with commit `2a47f779` has been revoked/deleted.
+- [ ] **1. Revoke Historical GEE Key in Google Cloud Console:**
+  1. Open [Google Cloud Console](https://console.cloud.google.com/) and sign in.
+  2. Select project: `gen-lang-client-0975553683`.
+  3. Navigate to **IAM & Admin** > **Service Accounts**.
+  4. Click on `climate-engine@gen-lang-client-0975553683.iam.gserviceaccount.com`.
+  5. Select the **Keys** tab.
+  6. Locate the key ID starting with `f8b88c06...`.
+  7. Click the trash icon / **Delete** to revoke and delete the key permanently.
 - [ ] **2. Verify Production Environment Variables:** Confirm that secrets in the Hugging Face Space settings (`HF_TOKEN`, `GROQ_API_KEY`, `API_KEYS`) and Vercel deployment are secure and not exposed in public repositories.
 - [ ] **3. Configure Contact Delivery:** Ensure either `RESEND_API_KEY` + `CONTACT_TO_EMAIL` or `CONTACT_WEBHOOK_URL` is set in production so that users submitting privacy requests via `/support` receive a response.
-- [ ] **4. Check Hosting Log Retention Periods:** Confirm the log retention window on Hugging Face Spaces (typically 7–30 days for ephemeral container logs) and Vercel (typically 1–7 days on standard tiers) to accurately inform users upon request.
+- [ ] **4. Check Hosting Log Retention Periods:** Confirm the log retention window on Hugging Face Spaces (ephemeral container logs) and Vercel (1 hour to 1 day default) to accurately inform users upon request.
 - [ ] **5. Review Domain & HTTPS Configuration:** Ensure that the production custom domain enforces TLS 1.3 / HTTPS with automatic redirection.
 
 ---
@@ -139,7 +149,7 @@ Prior to final submission of this clarification package to the DPGA reviewer, th
 > 5. **Data Minimization in Sessions:** Upstream OAuth access tokens have been removed from client session JWT objects, retaining only minimal identity information.
 > 6. **Comprehensive Policy Alignment:** Both the repository root `PRIVACY.md` and website `/privacy` page have been updated to revision OP-PRV-02 with identical disclosures of our third-party provider inventory, cache lifecycles, and security controls.
 >
-> All 422 engine test cases, 12 consent/contact unit tests, TypeScript type checks, and production builds pass cleanly in the repository test suite.
+> All 422 engine test cases, 23 frontend unit tests, TypeScript type checks, and production builds pass cleanly in the repository test suite.
 >
 > A detailed evidence table and technical breakdown are available in `DPGA_PRIVACY_CLARIFICATION.md` in our repository root.
 >

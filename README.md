@@ -432,9 +432,28 @@ Roth M (2007) Q J R Meteorol Soc 133(629):1551–1563 Fig. 3.*
 
 ---
 
+## Relevance to UN Sustainable Development Goals (SDGs)
+
+OpenPlanet is designed as a digital public good directly advancing two core United Nations Sustainable Development Goals:
+
+### SDG 13: Climate Action
+- **Target 13.1 — Strengthen resilience and adaptive capacity to climate-related hazards:** Provides city-scale physical climate risk projections, wet-bulb survivability indexes ($T_{wb} \ge 35^\circ\text{C}$ caps), and extreme heat exposure metrics (WMO Tx5d) across any global coordinate, allowing decision-makers to identify compound heat vulnerabilities before crisis events occur.
+- **Target 13.2 — Integrate climate change measures into policies, strategies, and planning:** Delivers auditable 4-sheet analytical models and intervention simulations (urban tree canopy expansion and surface albedo modification) to evaluate the cooling efficacy and mortality reduction of municipal adaptation plans.
+
+### SDG 11: Sustainable Cities and Communities
+- **Target 11.5 — Reduce mortality and economic losses from disasters, protecting vulnerable populations:** Translates raw climate data (ERA5 reanalysis and CMIP6 ensembles) into localized epidemiological mortality estimates (Gasparrini et al. 2017) and labor productivity impacts (Burke et al. 2018 / ILO 2019) weighted by the OpenPlanet Composite Vulnerability Index (OP-CVI).
+- **Target 11.b — Implement integrated adaptation and resilience policies in human settlements:** Provides an open-source, keyless, and platform-independent intelligence platform freely available to municipal planners, researchers, and civil society without subscription costs or vendor lock-in.
+
+### Demonstrated Capabilities vs Real-World Deployment Status
+- **Empirical Validation:** 422 automated engine tests, 21 frontend validation tests, 25 reference cities across all major Köppen climate zones (221/221 field checks passed in [`VALIDATION_REPORT.md`](VALIDATION_REPORT.md)), and 5 historical heatwave back-tests (Paris 2003, Chicago 1995, Moscow 2010, India 2015, England 2022).
+- **Prospective Public Sector Use Cases:** Climate resilience screening for municipal heat action plans, academic spatial vulnerability mapping, and regional climate adaptation prioritization.
+- **Transparent Adoption Disclosure:** OpenPlanet is an open-source screening and research platform. The project does **not** claim completed formal municipal pilots, sovereign government partnerships, or verified population-level mortality reductions in live field operations. All outputs remain non-binding directional research proxies.
+
+---
+
 ## Engineering Quality & Quality Gates
 
-Every push and pull request runs the CI pipeline (`.github/workflows/ci.yml`, free GitHub Actions):
+Every push and pull request runs the CI pipeline (`.github/workflows/main.yml`, free GitHub Actions):
 
 | Gate | What it enforces |
 |------|------------------|

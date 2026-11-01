@@ -101,7 +101,7 @@ The codebase interfaces with the following categories of external services:
 - **Zero Secret Logging:** API keys, access tokens, and passwords are never output to logs. Invalid API key attempts record only the string length for diagnostic debugging.
 - **Distributed Tracing:** Every HTTP transaction receives a unique UUIDv4 `X-Request-ID` header.
 - **Public Error Masking:** Production error handlers sanitize responses, returning generic error summaries with the request reference ID to avoid exposing internal stack traces.
-- **Infrastructure Log Retention:** Raw server access logs (including remote IP address, user-agent, and HTTP method) are retained by hosting platforms (Hugging Face Spaces, Vercel). Their exact retention duration is governed by hosting platform terms and must be verified by the deployment owner.
+- **Infrastructure Log Retention:** Raw server access logs (including remote IP address, user-agent, and HTTP method) are retained by hosting platforms (Hugging Face Spaces, Vercel). Their exact retention duration is governed by hosting platform terms (typically 1 hour to 1 day on standard Vercel tiers, and ephemeral container runtime on Hugging Face Spaces) and must be verified by the deployment owner.
 
 ---
 
@@ -111,7 +111,7 @@ Users can communicate with maintainers via `/support`:
 - **Input Validation:** Strict server-side validation enforces character limits on name (max 100), email (max 254), organization (max 100), category (max 50), and message (min 5, max 5000), with a 64KB maximum body ceiling.
 - **Abuse Prevention:** Client IP sliding-window rate limiting restricts submissions to a maximum of 5 requests per 10 minutes.
 - **No Database Retention:** Contact messages are never saved to a database or file in this codebase.
-- **Configured Forwarding:** Valid submissions are forwarded to the operator's configured webhook, Resend email service, or Formspree gateway. If none are configured, the API returns HTTP 503 without storing data.
+- **Configured Forwarding:** Valid submissions are forwarded to the operator's configured webhook, Resend email service, or Formspree gateway. If none are configured, the API returns HTTP 503 with the maintainer direct contact email (aakash@openplanetrisk.com) without storing data.
 - **Privacy Inquiries:** To exercise data subject rights or submit a privacy inquiry, select category **"Privacy Request"** on the support form (/support) or email project maintainers directly at [aakash@openplanetrisk.com](mailto:aakash@openplanetrisk.com). All privacy requests are handled manually.
 - **Important Security Warning:** **Never submit personal data, email addresses, or query coordinates in public GitHub issues**, as public repositories are permanently indexed across the web.
 

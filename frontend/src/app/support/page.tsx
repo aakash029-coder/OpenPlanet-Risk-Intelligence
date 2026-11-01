@@ -205,7 +205,7 @@ export default function SupportPage() {
                     </div>
 
                     <p className="text-[9px] text-slate-400 leading-relaxed">
-                      Privacy & data requests: Select &ldquo;Privacy Request&rdquo; to reach the maintainers securely.
+                      Privacy & data requests: Select &ldquo;Privacy Request&rdquo; to reach the maintainers securely, or email directly at <a href="mailto:aakash@openplanetrisk.com" className="text-cyan-400 underline">aakash@openplanetrisk.com</a>.
                       To protect your privacy, please do not post personal details or emails in public issues.
                     </p>
 

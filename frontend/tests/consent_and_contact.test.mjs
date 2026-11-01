@@ -205,3 +205,23 @@ test('Contact Rate Limiter — Blocks requests exceeding ceiling per window', ()
   assert.equal(attemptRequest(now + 600), false);
 });
 
+function getContactFallbackError(category) {
+  const isPrivacyRequest = category === "Privacy Request";
+  return isPrivacyRequest
+    ? "Contact delivery gateway is not configured on this deployment. To exercise your privacy rights, please email maintainers directly at aakash@openplanetrisk.com."
+    : "Contact delivery is not configured on this deployment. For inquiries or support, please reach out to the project maintainers directly at aakash@openplanetrisk.com.";
+}
+
+test('Contact 503 Fallback — Privacy Request includes direct maintainer email', () => {
+  const err = getContactFallbackError('Privacy Request');
+  assert.ok(err.includes('aakash@openplanetrisk.com'));
+  assert.ok(err.includes('privacy rights'));
+});
+
+test('Contact 503 Fallback — General inquiry includes maintainer contact email', () => {
+  const err = getContactFallbackError('Feedback / Suggestion');
+  assert.ok(err.includes('aakash@openplanetrisk.com'));
+  assert.ok(err.includes('inquiries or support'));
+});
+
+

@@ -65,5 +65,5 @@ This document records concrete, verified implementations across the repository t
 ---
 
 ## 8) Containerized Deployment Independence
-- **Files:** [`backend/Dockerfile`](file:///Users/aakash/openplanet-climate/backend/Dockerfile), [`README.md`](file:///Users/aakash/openplanet-climate/README.md)
+- **Files:** [`Dockerfile`](file:///Users/aakash/openplanet-climate/Dockerfile), [`README.md`](file:///Users/aakash/openplanet-climate/README.md)
 - **Implementation:** The engine packages as a standard, self-contained Docker container exposing a FastAPI service on port 7860. It requires no vendor-locked hosting adapters (runs identically on bare metal, AWS ECS, GCP Cloud Run, Hugging Face Spaces, or private Kubernetes clusters).
