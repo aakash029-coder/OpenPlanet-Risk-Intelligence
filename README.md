@@ -298,6 +298,7 @@ openplanet-climate/
 ├── tests/                   # Python integration tests (geocoding, pipeline)
 ├── docs/                    # Extended scientific methodology documentation
 ├── .env.example             # Environment variable reference (no real secrets)
+├── CODE_OF_CONDUCT.md       # Contributor Covenant Code of Conduct
 ├── CONTRIBUTING.md          # Contribution guidelines
 └── LICENSE                  # MIT License
 ```
@@ -469,6 +470,14 @@ Every push and pull request runs the CI pipeline (`.github/workflows/ci.yml`, fr
 **5 — Zero Liability.** To the maximum extent permitted by applicable law, the authors and contributors accept zero civil or commercial liability for capital allocation decisions, portfolio actions, insurance pricing changes, public policy choices, or any consequential action taken in reliance on this engine's outputs. Users assume full responsibility for independent validation before any operational deployment.
 
 **Open-Source Licensing:** MIT License. No warranty express or implied. See [LICENSE](LICENSE).
+
+---
+
+## Code of Conduct
+
+We are committed to providing a welcoming, diverse, and harassment-free community for everyone. All contributors and participants are expected to uphold the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md) (v2.1).
+
+To report unacceptable behavior or harassment confidentially, please contact project leadership privately at [aakash@openplanetrisk.com](mailto:aakash@openplanetrisk.com). All reports will be reviewed and investigated promptly, fairly, and with strict privacy.
 
 ---
 

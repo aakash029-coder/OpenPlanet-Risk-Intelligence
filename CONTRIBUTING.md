@@ -18,7 +18,9 @@ Thank you for your interest in contributing to the OpenPlanet Climate Risk Intel
 
 ## Code of Conduct
 
-All contributors are expected to uphold a standard of respectful, collaborative engagement. Contributions that misrepresent scientific findings, introduce unverifiable data sources, or intentionally degrade model accuracy will not be accepted.
+All participants in the OpenPlanet community are expected to adhere to our [Code of Conduct](CODE_OF_CONDUCT.md) (adapted from Contributor Covenant v2.1). We are committed to providing a welcoming, inclusive, and harassment-free environment for everyone.
+
+Instances of abusive, harassing, or otherwise unacceptable behavior can be reported privately by email to [aakash@openplanetrisk.com](mailto:aakash@openplanetrisk.com). All reports will be reviewed and investigated promptly, fairly, and with strict confidentiality.
 
 ---
 
