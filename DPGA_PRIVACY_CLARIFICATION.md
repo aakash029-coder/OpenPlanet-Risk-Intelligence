@@ -89,6 +89,12 @@ The following safe, necessary code and documentation improvements have been impl
 - **File:** [`frontend/tests/consent_and_contact.test.mjs`](file:///Users/aakash/openplanet-climate/frontend/tests/consent_and_contact.test.mjs)  
   **Coverage:** 12 automated unit tests covering initial visit consent nullability, granted state persistence, denied state persistence, `ga-disable` flag setting on withdrawal, `_ga*` cookie regex cleanup, contact input validation, oversized field rejection, category allowlisting, and sliding window rate limiting.
 
+### 3.7 CI Pipeline & Environment Documentation
+- **File:** [`.github/workflows/main.yml`](file:///Users/aakash/openplanet-climate/.github/workflows/main.yml)  
+  **Changes:** Replaced placeholder echo step with a real GitHub Actions CI pipeline executing both backend pytest suite (`pytest tests/`) and frontend checks (`npm test`, `npx tsc --noEmit`, `npm run build`) on push/PR.
+- **File:** [`.env.example`](file:///Users/aakash/openplanet-climate/.env.example)  
+  **Changes:** Created a clean, comprehensive environment reference at the repository root documenting all backend, caching, optional weather tiers, LLM analysis, NextAuth, and contact gateway variables with zero secrets.
+
 ---
 
 ## 4. Remaining Limitations
@@ -98,6 +104,7 @@ The following items cannot be fully verified from repository source code alone a
 2. **Third-Party Provider Retention Policies:** Data transmitted to external APIs (Open-Meteo, NASA POWER, UN Population Division, World Bank, and email delivery providers) is subject to the independent data-retention and privacy policies of those external organizations.
 3. **Contact Delivery Secret Provisioning:** In local or default environments, if `RESEND_API_KEY`, `CONTACT_WEBHOOK_URL`, and `CONTACT_FORMSPREE_ENDPOINT` are unset, the contact form returns HTTP 503. The project owner must configure at least one destination in production.
 4. **Historical Credential in Git History:** An Earth Engine service account key existed in legacy commit `2a47f779` prior to deletion in `afa7221f`. Even though it is absent from the working tree and `.gitignore` prevents future secret commits, git history retains the commit. The owner must confirm revocation in Google Cloud Console.
+5. **Live HTTPS/TLS Enforcement & Domain Certificates:** While code emits `Strict-Transport-Security` headers in production mode, SSL/TLS certificate installation, cipher suites, and automatic HTTP-to-HTTPS redirects are handled by the edge host/DNS provider and must be verified on the live production URL.
 
 ---
 
