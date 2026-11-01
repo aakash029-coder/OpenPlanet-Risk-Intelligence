@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useSession, signOut, signIn } from 'next-auth/react'
+import { AUTH_PROVIDER_ID } from '@/lib/auth';
 import { usePathname } from 'next/navigation'
 
 export default function Navbar() {
@@ -78,7 +79,7 @@ export default function Navbar() {
             </div>
           ) : (
             <button
-              onClick={() => signIn('google')}
+              onClick={() => signIn(AUTH_PROVIDER_ID)}
               className="hidden md:flex items-center px-4 py-2 text-[9px] font-mono font-bold tracking-[0.2em] uppercase transition-all duration-150 hover:text-white btn-primary"
               style={{ border: '1px solid var(--hairline)', color: 'var(--text-2)', background: 'var(--raised)', touchAction: 'manipulation' }}
             >
@@ -157,7 +158,7 @@ export default function Navbar() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => { signIn('google'); setMobileOpen(false); }}
+                    onClick={() => { signIn(AUTH_PROVIDER_ID); setMobileOpen(false); }}
                     className="w-full flex items-center justify-center min-h-[44px] text-[10px] font-mono font-bold tracking-[0.2em] uppercase transition-all duration-150 hover:text-white btn-primary"
                     style={{ border: '1px solid var(--hairline)', color: 'var(--text-2)', background: 'var(--raised)', touchAction: 'manipulation' }}
                   >

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { AUTH_PROVIDER_ID } from '@/lib/auth';
 
 const BASE = {
   city: 'Paris',
@@ -344,7 +345,7 @@ export default function DiscoverPage() {
               
               <div className="space-y-3">
                 <button
-                  onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+                  onClick={() => signIn(AUTH_PROVIDER_ID, { callbackUrl: '/dashboard' })}
                   className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white text-gray-800 font-medium text-sm rounded-xl hover:bg-gray-100 transition-all"
                   style={{ touchAction: 'manipulation' }}
                 >

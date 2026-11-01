@@ -288,7 +288,7 @@ export default function PrivacyPage() {
               <li><strong>Abuse Protection:</strong> Submissions are rate-limited per client IP (maximum 5 requests per 10-minute window).</li>
               <li><strong>No Internal Database Storage:</strong> Contact submissions are never written to a local database or persistent disk log in this repository.</li>
               <li><strong>Delivery Gateways:</strong> Valid messages are forwarded directly to the operator&apos;s configured webhook, Resend email, or Formspree endpoint. If no delivery service is configured, the endpoint returns HTTP 503 without storing data.</li>
-              <li><strong>Privacy Inquiries:</strong> To raise a data inquiry or deletion request, select category <em>&ldquo;Privacy Request&rdquo;</em> in the contact form. <strong>Do not post personal information, email addresses, or coordinates in public GitHub issues</strong>, as public issues are permanently visible to the web.</li>
+              <li><strong>Privacy Inquiries:</strong> To raise a data inquiry or deletion request, select category <em>&ldquo;Privacy Request&rdquo;</em> in the contact form or email project maintainers directly at <a href="mailto:aakash@openplanetrisk.com" className="text-cyan-400 underline">aakash@openplanetrisk.com</a>. All privacy requests are handled manually. <strong>Do not post personal information, email addresses, or coordinates in public GitHub issues</strong>, as public issues are permanently visible to the web.</li>
             </ul>
           </section>
 

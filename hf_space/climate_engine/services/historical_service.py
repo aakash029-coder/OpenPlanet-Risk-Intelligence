@@ -182,7 +182,9 @@ async def _fetch_weatherstack(lat: float, lng: float) -> Optional[Dict[str, Any]
     Requires WEATHERSTACK_API_KEY environment variable.
     Fetches in 5-year blocks to respect per-request date range limits.
     """
-    api_key = os.getenv("WEATHERSTACK_API_KEY")
+    from climate_engine.services.weather_providers import WEATHERSTACK_BASE_URL, ProviderConfig
+
+    api_key = ProviderConfig.weatherstack_key()
     if not api_key:
         logger.debug("[Tier-2A] Weatherstack skipped: WEATHERSTACK_API_KEY not configured.")
         return None
@@ -199,7 +201,7 @@ async def _fetch_weatherstack(lat: float, lng: float) -> Optional[Dict[str, Any]
                 (2010, 2014), (2015, 2019), (2020, 2024),
             ]:
                 url = (
-                    f"http://api.weatherstack.com/historical"
+                    f"{WEATHERSTACK_BASE_URL}"
                     f"?access_key={api_key}"
                     f"&query={lat},{lng}"
                     f"&historical_date_start={start_yr}-01-01"
@@ -241,15 +243,21 @@ async def _fetch_meteostat(lat: float, lng: float) -> Optional[Dict[str, Any]]:
     Requires METEOSTAT_API_KEY environment variable.
     Fetches 30 years as ~360 monthly records in a single API call.
     """
-    api_key = os.getenv("METEOSTAT_API_KEY")
+    from climate_engine.services.weather_providers import (
+        METEOSTAT_BASE_URL,
+        METEOSTAT_RAPIDAPI_HOST,
+        ProviderConfig,
+    )
+
+    api_key = ProviderConfig.meteostat_key()
     if not api_key:
         logger.debug("[Tier-2B] Meteostat skipped: METEOSTAT_API_KEY not configured.")
         return None
 
     logger.info("[Tier-2B] Attempting Meteostat monthly for (%.4f, %.4f)", lat, lng)
-    url = "https://meteostat.p.rapidapi.com/point/monthly"
+    url = METEOSTAT_BASE_URL
     headers = {
-        "x-rapidapi-host": "meteostat.p.rapidapi.com",
+        "x-rapidapi-host": METEOSTAT_RAPIDAPI_HOST,
         "x-rapidapi-key":  api_key,
     }
     params = {"lat": lat, "lon": lng, "start": "1995-01-01", "end": "2024-12-31"}
@@ -279,7 +287,9 @@ async def _fetch_visual_crossing(lat: float, lng: float) -> Optional[Dict[str, A
     Tier 3 — Visual Crossing daily historical weather API.
     Requires VISUAL_CROSSING_API_KEY environment variable.
     """
-    api_key = os.getenv("VISUAL_CROSSING_API_KEY")
+    from climate_engine.services.weather_providers import VISUAL_CROSSING_BASE_URL, ProviderConfig
+
+    api_key = ProviderConfig.visual_crossing_key()
     if not api_key:
         logger.debug("[Tier-3] Visual Crossing skipped: VISUAL_CROSSING_API_KEY not configured.")
         return None
@@ -287,7 +297,7 @@ async def _fetch_visual_crossing(lat: float, lng: float) -> Optional[Dict[str, A
     logger.info("[Tier-3] Attempting Visual Crossing for (%.4f, %.4f)", lat, lng)
     location = f"{lat},{lng}"
     url = (
-        f"https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/"
+        f"{VISUAL_CROSSING_BASE_URL}/"
         f"{urllib.parse.quote_plus(location)}/1995-01-01/2024-12-31"
         f"?unitGroup=metric&contentType=json&key={api_key}&elements=datetime,tempmax,temp"
     )

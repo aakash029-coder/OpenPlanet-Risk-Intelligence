@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { AUTH_PROVIDER_ID } from '@/lib/auth';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { useModalA11y } from '@/hooks/useModalA11y';
 
@@ -461,7 +462,7 @@ export default function LandingMobile() {
               <h2 id="auth-modal-title-mobile" className="text-lg font-sans font-semibold mb-8 tracking-tight" style={{ color: 'var(--text)' }}>OpenPlanet</h2>
               <div className="space-y-3">
                 <button
-                  onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
+                  onClick={() => signIn(AUTH_PROVIDER_ID, { callbackUrl: '/dashboard' })}
                   className="w-full flex items-center justify-center gap-3 px-6 py-3.5 bg-white text-gray-800 font-sans font-medium text-sm hover:bg-gray-50 transition-all min-h-[52px]"
                   style={{ touchAction: 'manipulation' }}
                 >

@@ -15,6 +15,8 @@ __pycache__/
 .Python
 
 # Environment & secrets
+.env*
+!.env.example
 .env
 .env.local
 .env.*.local

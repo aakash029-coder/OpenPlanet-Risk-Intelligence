@@ -18,6 +18,17 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Vendor Base URLs
+# ─────────────────────────────────────────────────────────────────────────────
+WEATHERSTACK_BASE_URL = os.getenv("WEATHERSTACK_BASE_URL", "http://api.weatherstack.com/historical")
+METEOSTAT_BASE_URL = os.getenv("METEOSTAT_BASE_URL", "https://meteostat.p.rapidapi.com/point/monthly")
+METEOSTAT_RAPIDAPI_HOST = os.getenv("METEOSTAT_RAPIDAPI_HOST", "meteostat.p.rapidapi.com")
+VISUAL_CROSSING_BASE_URL = os.getenv(
+    "VISUAL_CROSSING_BASE_URL",
+    "https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline",
+)
+
 
 class HistoricalProvider(Protocol):
     """Common interface for historical weather data providers."""
@@ -31,16 +42,40 @@ class ProviderConfig:
     """Centralized configuration for weather providers."""
 
     @staticmethod
-    def weatherstack_key() -> Optional[str]:
-        return os.getenv("WEATHERSTACK_API_KEY") or os.getenv("HISTORICAL_WEATHERSTACK_KEY")
+    def weatherstack_key() -> str:
+        try:
+            from climate_engine.settings import settings
+
+            val = settings.WEATHERSTACK_API_KEY.get_secret_value()
+            if val:
+                return val
+        except Exception:
+            pass
+        return (os.getenv("WEATHERSTACK_API_KEY") or os.getenv("HISTORICAL_WEATHERSTACK_KEY") or "").strip()
 
     @staticmethod
-    def meteostat_key() -> Optional[str]:
-        return os.getenv("METEOSTAT_API_KEY") or os.getenv("RAPIDAPI_KEY")
+    def meteostat_key() -> str:
+        try:
+            from climate_engine.settings import settings
+
+            val = settings.METEOSTAT_API_KEY.get_secret_value()
+            if val:
+                return val
+        except Exception:
+            pass
+        return (os.getenv("METEOSTAT_API_KEY") or os.getenv("RAPIDAPI_KEY") or "").strip()
 
     @staticmethod
-    def visual_crossing_key() -> Optional[str]:
-        return os.getenv("VISUAL_CROSSING_API_KEY") or os.getenv("VISUALCROSSING_API_KEY")
+    def visual_crossing_key() -> str:
+        try:
+            from climate_engine.settings import settings
+
+            val = settings.VISUAL_CROSSING_API_KEY.get_secret_value()
+            if val:
+                return val
+        except Exception:
+            pass
+        return (os.getenv("VISUAL_CROSSING_API_KEY") or os.getenv("VISUALCROSSING_API_KEY") or "").strip()
 
     @staticmethod
     def enabled_providers() -> list[str]:

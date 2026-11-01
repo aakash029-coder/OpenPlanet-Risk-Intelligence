@@ -126,7 +126,7 @@ async def agentverse_submit(request: Request):
             try:
                 padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
                 payload_data = json.loads(base64.b64decode(padded).decode("utf-8"))
-                logger.info("[asi/submit] decoded_payload=%r", payload_data)
+                logger.info("[asi/submit] payload_keys=%s", list(payload_data.keys()) if isinstance(payload_data, dict) else [])
             except Exception as exc:
                 logger.warning("[asi/submit] payload decode failed: %s", exc)
 

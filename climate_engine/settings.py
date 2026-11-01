@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     ECMWF_API_KEY: SecretStr = SecretStr("")
     NASA_EARTHDATA_USERNAME: SecretStr = SecretStr("")
     NASA_EARTHDATA_PASSWORD: SecretStr = SecretStr("")
+    WEATHERSTACK_API_KEY: SecretStr = SecretStr("")
+    METEOSTAT_API_KEY: SecretStr = SecretStr("")
+    VISUAL_CROSSING_API_KEY: SecretStr = SecretStr("")
 
     # ── Security ──────────────────────────────────────────────────────────
     # Comma-separated list of valid API keys for endpoint protection.
@@ -126,6 +129,9 @@ class Settings(BaseSettings):
             "CORS_ORIGINS": self.CORS_ORIGINS,
             "API_KEY_PROTECTION": bool(self.API_KEYS),
             "GROQ_API_KEY": "**redacted**" if self.GROQ_API_KEY.get_secret_value() else "(not set)",
+            "WEATHERSTACK_API_KEY": "**redacted**" if self.WEATHERSTACK_API_KEY.get_secret_value() else "(not set)",
+            "METEOSTAT_API_KEY": "**redacted**" if self.METEOSTAT_API_KEY.get_secret_value() else "(not set)",
+            "VISUAL_CROSSING_API_KEY": "**redacted**" if self.VISUAL_CROSSING_API_KEY.get_secret_value() else "(not set)",
             "ECMWF_UID": "**redacted**" if self.ECMWF_UID.get_secret_value() else "(not set)",
             "NASA_EARTHDATA_USERNAME": "**redacted**" if self.NASA_EARTHDATA_USERNAME.get_secret_value() else "(not set)",
             "SECRET_KEY": "**redacted**",
