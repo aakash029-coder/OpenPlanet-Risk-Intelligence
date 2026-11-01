@@ -1,4 +1,8 @@
+'use client';
+
+import React from 'react';
 import Link from 'next/link';
+import { openConsentSettings } from './AnalyticsConsent';
 
 const NAV_COLS = [
   {
@@ -128,6 +132,18 @@ export default function SiteFooter() {
                   )}
                 </li>
               ))}
+              {col.heading === 'Legal' && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={openConsentSettings}
+                    className="font-sans text-[11px] text-left transition-colors duration-150 hover:text-white cursor-pointer"
+                    style={{ color: 'var(--text-2)' }}
+                  >
+                    Cookie Settings
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
         ))}
@@ -141,9 +157,18 @@ export default function SiteFooter() {
         <p className="font-mono text-[8px] leading-loose" style={{ color: 'var(--muted)', opacity: 0.55 }}>
           Data: Copernicus C3S (ERA5 · CMIP6) · Models: Gasparrini 2017, Burke 2018, Stull 2011 · v2.0
         </p>
-        <p className="font-mono text-[8px] shrink-0" style={{ color: 'var(--muted)', opacity: 0.4 }}>
-          © 2025 OpenPlanet Risk Intelligence · Open Source
-        </p>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={openConsentSettings}
+            className="font-mono text-[8px] uppercase tracking-wider text-slate-400 hover:text-white transition-colors"
+          >
+            Cookie Preferences
+          </button>
+          <p className="font-mono text-[8px] shrink-0" style={{ color: 'var(--muted)', opacity: 0.4 }}>
+            © 2025 OpenPlanet Risk Intelligence · Open Source
+          </p>
+        </div>
       </div>
     </footer>
   );

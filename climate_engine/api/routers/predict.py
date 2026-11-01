@@ -118,8 +118,8 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
                 f"Could not geocode '{location_hint}': {exc}"
             )
         logger.info(
-            "[predict] geocoded '%s' -> (%.4f, %.4f) via %s",
-            location_hint, geo.latitude, geo.longitude, geo.source,
+            "[predict] geocoded '%s' -> (%.2f, %.2f) via %s",
+            location_hint, round(geo.latitude, 2), round(geo.longitude, 2), geo.source,
         )
 
     lat = geo.latitude
@@ -136,7 +136,7 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
             async with httpx.AsyncClient(timeout=12.0, trust_env=False) as _elev_client:
                 elevation_m, elevation_src = await _fetch_dem_elevation(lat, lng, _elev_client)
         except Exception as exc:
-            logger.warning("[predict] DEM elevation unresolved for (%.4f,%.4f): %s", lat, lng, exc)
+            logger.warning("[predict] DEM elevation unresolved for (%.2f,%.2f): %s", round(lat, 2), round(lng, 2), exc)
 
     # ── 1. Historical baseline ────────────────────────────────────────────────
     try:

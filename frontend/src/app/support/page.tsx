@@ -35,11 +35,13 @@ const FAQS = [
 
 export default function SupportPage() {
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setStatus("submitting");
+    setErrorMessage("");
     const form = e.currentTarget;
     const formData = new FormData(form);
 
@@ -51,9 +53,16 @@ export default function SupportPage() {
       message: formData.get("message")?.toString() || "",
     };
 
-    const endpoint =
-      process.env.NEXT_PUBLIC_CONTACT_ENDPOINT ||
-      "/api/contact";
+    const configuredEndpoint = process.env.NEXT_PUBLIC_CONTACT_ENDPOINT?.trim();
+    // Enforce same-origin relative API path or current origin to prevent accidental data exfiltration
+    let endpoint = "/api/contact";
+    if (configuredEndpoint) {
+      if (configuredEndpoint.startsWith("/")) {
+        endpoint = configuredEndpoint;
+      } else if (typeof window !== "undefined" && configuredEndpoint.startsWith(window.location.origin)) {
+        endpoint = configuredEndpoint;
+      }
+    }
 
     try {
       const response = await fetch(endpoint, {
@@ -62,14 +71,18 @@ export default function SupportPage() {
         body: JSON.stringify(payload),
       });
 
+      const data = await response.json().catch(() => null);
+
       if (response.ok) {
         setStatus("success");
         form.reset();
       } else {
         setStatus("error");
+        setErrorMessage(data?.error || "Message failed to send. Please try again.");
       }
-    } catch (error) {
+    } catch {
       setStatus("error");
+      setErrorMessage("Network error connecting to contact service.");
     }
   };
 
@@ -140,7 +153,7 @@ export default function SupportPage() {
                     </div>
                     <h3 className="text-sm font-bold uppercase tracking-[0.2em] text-white mb-3">Message Sent!</h3>
                     <p className="text-[10px] text-slate-400 uppercase tracking-widest leading-relaxed">
-                      Thanks for reaching out. <br/> We'll get back to you as soon as possible.
+                      Thanks for reaching out. <br/> We&apos;ll get back to you as soon as possible.
                     </p>
                     <button 
                       onClick={() => setStatus("idle")}
@@ -175,6 +188,7 @@ export default function SupportPage() {
                         <option value="Bug Report">Bug Report</option>
                         <option value="Data Question">Data Question</option>
                         <option value="Partnership / Collaboration">Partnership / Collaboration</option>
+                        <option value="Privacy Request">Privacy Request (Data / Deletion)</option>
                         <option value="Other">Other</option>
                       </select>
                     </div>
@@ -190,10 +204,17 @@ export default function SupportPage() {
                       ></textarea>
                     </div>
 
+                    <p className="text-[9px] text-slate-400 leading-relaxed">
+                      Privacy & data requests: Select &ldquo;Privacy Request&rdquo; to reach the maintainers securely.
+                      To protect your privacy, please do not post personal details or emails in public issues.
+                    </p>
+
                     {status === "error" && (
                       <div className="bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 flex gap-4 items-center">
                         <span className="text-red-500 font-bold text-[10px]">ERR:</span>
-                        <span className="text-red-400 text-[10px] uppercase tracking-widest">Message failed to send. Please try again.</span>
+                        <span className="text-red-400 text-[10px] uppercase tracking-widest">
+                          {errorMessage || "Message failed to send. Please try again."}
+                        </span>
                       </div>
                     )}
 

@@ -104,10 +104,10 @@ async def verify_api_key(
     # Key provided but not in allowed set
     if api_key not in allowed:
         logger.warning(
-            "Invalid API key | ip=%s | path=%s | key_prefix=%s",
+            "Invalid API key | ip=%s | path=%s | key_len=%d",
             get_remote_address(request),
             request.url.path,
-            api_key[:6] + "..." if len(api_key) > 6 else "***",
+            len(api_key),
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

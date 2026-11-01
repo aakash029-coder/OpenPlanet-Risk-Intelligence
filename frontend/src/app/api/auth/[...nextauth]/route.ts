@@ -13,8 +13,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       authorization: {
         params: {
-          prompt: process.env.GOOGLE_PROMPT || "consent",
-          access_type: process.env.GOOGLE_ACCESS_TYPE || "offline",
+          prompt: process.env.GOOGLE_PROMPT || "select_account",
+          access_type: process.env.GOOGLE_ACCESS_TYPE || "online",
           response_type: "code",
         },
       },
@@ -44,10 +44,9 @@ if (process.env.AUTHENTIK_CLIENT_ID && process.env.AUTHENTIK_CLIENT_SECRET && pr
   );
 }
 
-// Generic OIDC (Keycloak/Authentik compatible) - use Keycloak provider style if issuer provided
+// Generic OIDC fallback
 if (providers.length === 0 && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET && process.env.OIDC_ISSUER) {
   try {
-    const { default: KeycloakProvider } = require("next-auth/providers/keycloak");
     providers.push(
       KeycloakProvider({
         id: process.env.OIDC_ID || "oidc",
@@ -57,7 +56,7 @@ if (providers.length === 0 && process.env.OIDC_CLIENT_ID && process.env.OIDC_CLI
         clientSecret: process.env.OIDC_CLIENT_SECRET,
       })
     );
-  } catch (e) {
+  } catch {
     // Skip if not available; preserve security without breaking build
   }
 }
@@ -69,13 +68,12 @@ const authOptions: NextAuthOptions = {
   },
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
-    async jwt({ token, account }) {
-      if (account) {
-        token.accessToken = account.access_token;
-      }
+    async jwt({ token }) {
+      // Data minimization: Do not store provider access tokens in JWT
+      // OpenPlanet only uses NextAuth for identity session state.
       return token;
     },
-    async session({ session, token }) {
+    async session({ session }) {
       return session;
     },
   },

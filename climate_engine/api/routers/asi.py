@@ -59,12 +59,12 @@ async def _get_asi_climate_summary(city_name: str) -> str:
     if vault_key:
         cv = _CITY_COORDS[vault_key]
         lat, lng = cv["lat"], cv["lng"]
-        logger.info("[asi] vault hit '%s' -> (%.4f, %.4f)", city_name, lat, lng)
+        logger.info("[asi] vault hit '%s' -> (%.2f, %.2f)", city_name, round(lat, 2), round(lng, 2))
     else:
         async with httpx.AsyncClient(timeout=10.0, trust_env=False) as geo_client:
             geo = await geocode_city(city_name, geo_client)
         lat, lng = geo.latitude, geo.longitude
-        logger.info("[asi] geocoded '%s' -> (%.4f, %.4f)", city_name, lat, lng)
+        logger.info("[asi] geocoded '%s' -> (%.2f, %.2f)", city_name, round(lat, 2), round(lng, 2))
 
     baseline, rh_p95 = await asyncio.gather(
         fetch_historical_baseline_full(lat, lng),
@@ -190,7 +190,7 @@ async def agentverse_submit(request: Request):
                     if raw_text:
                         break
 
-        logger.info("[asi/submit] raw_text=%r", raw_text)
+        logger.info("[asi/submit] request received | text_len=%d", len(raw_text) if raw_text else 0)
 
         city_name = ""
         if raw_text:

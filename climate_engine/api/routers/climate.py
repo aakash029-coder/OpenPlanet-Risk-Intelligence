@@ -55,16 +55,14 @@ async def climate_risk(request: Request, req: ClimateRiskRequest, response: Resp
     ssp_code = _normalize_ssp(req.ssp)
     extreme = _is_high_emission(ssp_code)
     logger.info(
-        "[climate-risk] lat=%.4f  lng=%.4f  ssp_raw=%r  ssp_code=%r  "
-        "extreme=%s  canopy=%d%%  albedo=%d%%  hint=%r",
-        req.lat,
-        req.lng,
-        req.ssp,
+        "[climate-risk] lat=%.2f  lng=%.2f  ssp_code=%r  "
+        "extreme=%s  canopy=%d%%  albedo=%d%%",
+        round(req.lat, 2),
+        round(req.lng, 2),
         ssp_code,
         extreme,
         req.canopy_offset_pct,
         req.albedo_offset_pct,
-        req.location_hint,
     )
 
     # ── Baseline ──────────────────────────────────────────────────────────────
