@@ -90,7 +90,7 @@ The codebase interfaces with the following categories of external services:
 - **Contact Gateways:** External webhook (`CONTACT_WEBHOOK_URL`), Resend API (`api.resend.com`), or Formspree.
 
 ### 5.3 Hosting & Infrastructure
-- **Hugging Face Spaces:** Hosts the Python FastAPI backend engine container.
+- **Climate Engine Host (configurable via `ENGINE_URL`):** The Python FastAPI engine location is configurable through the server-side `ENGINE_URL` environment variable (defaulting to `http://localhost:7860` for self-hosted deployments). On the operator's current hosted deployment, the containerized engine runs on **Hugging Face Spaces**.
 - **Vercel (or alternative host):** Hosts the Next.js frontend application and edge API proxy routes.
 
 ---

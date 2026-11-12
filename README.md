@@ -207,7 +207,7 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env — set GROQ_API_KEY for AI analysis features
+# Edit .env — optionally set LLM_API_KEY, LLM_BASE_URL, and LLM_MODEL for AI analysis features
 
 uvicorn climate_engine.api.main:app --reload --port 7860
 ```
@@ -244,7 +244,8 @@ npm install
 
 # Create frontend/.env.local
 cp ../.env.example .env.local
-# Set NEXT_PUBLIC_ENGINE_URL=http://localhost:7860
+# For self-hosting, run the engine on port 7860 and the frontend with the default ENGINE_URL (http://localhost:7860).
+# Hosted deployments should set server-side ENGINE_URL to their own engine URL.
 
 npm run dev
 ```

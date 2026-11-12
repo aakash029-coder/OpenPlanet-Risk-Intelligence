@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ENGINE_BASE = 'https://albus2903-openplanet-engine.hf.space';
+import { getEngineBaseUrl } from '@/lib/engine';
 
 const ALLOWED = ['/api/predict', '/api/climate-risk', '/api/research-analysis'];
 
@@ -12,14 +11,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid endpoint' }, { status: 400 });
     }
 
-    const response = await fetch(`${ENGINE_BASE}${endpoint}`, {
+    const engineBase = getEngineBaseUrl();
+    const response = await fetch(`${engineBase}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0 (compatible; OpenPlanet/1.0)',
-        'Origin': 'https://www.openplanetrisk.com',
-        'Referer': 'https://www.openplanetrisk.com/',
+        'User-Agent': 'OpenPlanet-Frontend/2.0',
       },
       body: JSON.stringify(payload),
     });

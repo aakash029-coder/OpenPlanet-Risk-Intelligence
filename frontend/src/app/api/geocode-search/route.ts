@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const ENGINE_BASE = 'https://albus2903-openplanet-engine.hf.space';
+import { getEngineBaseUrl } from '@/lib/engine';
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get('q') ?? '';
@@ -10,8 +9,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const engineBase = getEngineBaseUrl();
     const upstream = await fetch(
-      `${ENGINE_BASE}/api/geocode-search?q=${encodeURIComponent(q.trim())}`,
+      `${engineBase}/api/geocode-search?q=${encodeURIComponent(q.trim())}`,
       {
         method: 'GET',
         headers: {

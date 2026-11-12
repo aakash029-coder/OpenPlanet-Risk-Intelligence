@@ -64,6 +64,7 @@ This document records concrete, verified implementations across the repository t
 
 ---
 
-## 8) Containerized Deployment Independence
-- **Files:** [`Dockerfile`](file:///Users/aakash/openplanet-climate/Dockerfile), [`README.md`](file:///Users/aakash/openplanet-climate/README.md)
-- **Implementation:** The engine packages as a standard, self-contained Docker container exposing a FastAPI service on port 7860. It requires no vendor-locked hosting adapters (runs identically on bare metal, AWS ECS, GCP Cloud Run, Hugging Face Spaces, or private Kubernetes clusters).
+## 8) Containerized Deployment & Engine URL Independence
+- **Files:** [`Dockerfile`](file:///Users/aakash/openplanet-climate/Dockerfile), [`frontend/src/lib/engine.ts`](file:///Users/aakash/openplanet-climate/frontend/src/lib/engine.ts), [`frontend/src/app/api/engine/route.ts`](file:///Users/aakash/openplanet-climate/frontend/src/app/api/engine/route.ts), [`frontend/src/app/api/geocode-search/route.ts`](file:///Users/aakash/openplanet-climate/frontend/src/app/api/geocode-search/route.ts), [`README.md`](file:///Users/aakash/openplanet-climate/README.md)
+- **Containerized Engine:** The engine packages as a standard, self-contained Docker container exposing a FastAPI service on port 7860. It requires no vendor-locked hosting adapters (runs identically on bare metal, AWS ECS, GCP Cloud Run, Hugging Face Spaces, or private Kubernetes clusters).
+- **Configurable Engine Location (`ENGINE_URL`):** The frontend server-side API routes (`/api/engine`, `/api/geocode-search`) resolve the backend engine host exclusively through [`getEngineBaseUrl()`](file:///Users/aakash/openplanet-climate/frontend/src/lib/engine.ts) reading the server-side `ENGINE_URL` environment variable (defaulting to `http://localhost:7860` with trailing slashes stripped). No hardcoded hosting URLs or `NEXT_PUBLIC_` client overrides exist.

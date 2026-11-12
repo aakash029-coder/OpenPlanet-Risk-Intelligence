@@ -16,8 +16,8 @@ numpy==2.2.6
 duckdb
 pyarrow
 
-# ── LLM Integration ───────────────────────────────────────────────────────────
-groq==1.0.0
+# ── LLM Integration (Provider-Neutral OpenAI-compatible SDK) ──────────────────
+openai>=1.0.0,<3.0.0
 
 # ── Live API Fetching, Caching & Global Standards ─────────────────────────────
 httpx==0.28.1

@@ -24,6 +24,9 @@ dependencies = [
     "h3>=3.7.0",
     "h3pandas>=0.2.0",
 
+    # ── Optional LLM integration (OpenAI-compatible client) ────────────────
+    "openai>=1.0.0,<3.0.0",
+
     # Removed: duckdb — replaced entirely by Postgres + PostGIS.
 ]
 

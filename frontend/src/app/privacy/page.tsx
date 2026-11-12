@@ -249,7 +249,7 @@ export default function PrivacyPage() {
               <div className="p-3 bg-white/[0.02] border border-white/5 rounded">
                 <strong className="text-slate-200 block font-mono text-[11px] mb-1">Hosting Platforms:</strong>
                 <ul className="list-disc pl-4 space-y-1">
-                  <li><strong>Hugging Face Spaces:</strong> Hosts the containerized FastAPI Python climate engine.</li>
+                  <li><strong>Climate Engine Host (configurable via <code className="text-slate-300">ENGINE_URL</code>):</strong> The Python FastAPI engine location is configurable via the server-side <code className="text-slate-300">ENGINE_URL</code> environment variable (defaulting to <code className="text-slate-300">http://localhost:7860</code> for self-hosted deployments). The operator&apos;s current hosted deployment uses <strong>Hugging Face Spaces</strong>.</li>
                   <li><strong>Vercel (or alternative Next.js host):</strong> Hosts the Next.js frontend and edge API routes.</li>
                 </ul>
               </div>
