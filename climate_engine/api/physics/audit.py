@@ -82,8 +82,8 @@ def _build_audit_trail(
                 "HW_days": round(hw_days, 1),
             },
             "adjustment_notes": [
-                "Burke (2018) applied to standard operational days",
-                "ILO Heat Stress guidelines applied to days exceeding 34.0°C"
+                "Burke (2018) applied to standard operational days (T_mean > 13°C)",
+                "ILO Heat Stress guidelines applied to days exceeding local adaptation threshold (26°C–34°C)"
             ],
             "computation": (
                 f"${econ_loss / 1e6:.1f}M = Baseline Allocation + Extreme Shock Allocation"

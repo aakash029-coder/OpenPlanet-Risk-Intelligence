@@ -119,11 +119,11 @@ def test_burke_zero_at_optimum():
     assert physics.apply_burke_formula(1_000_000.0, 13.0) == 0.0
 
 
-def test_burke_penalty_symmetric_and_positive():
+def test_burke_penalty_positive_above_optimum_and_zero_below():
     hot = physics.apply_burke_formula(1_000_000.0, 13.0 + 10.0)
     cold = physics.apply_burke_formula(1_000_000.0, 13.0 - 10.0)
     assert hot > 0
-    assert hot == pytest.approx(cold)  # quadratic → symmetric about optimum
+    assert cold == 0.0  # cold/subarctic cities are not penalized for being below 13°C
 
 
 def test_economic_loss_monotonic_in_heatwave_days():
@@ -131,3 +131,13 @@ def test_economic_loss_monotonic_in_heatwave_days():
     few = physics.compute_hybrid_economic_loss(hw_days=10, **base)
     many = physics.compute_hybrid_economic_loss(hw_days=120, **base)
     assert many > few >= 0
+
+
+def test_economic_loss_acclimatized_adaptation_threshold():
+    # Cold city (Yakutsk/London: T_mean <= 13°C) has zero normal-day penalty,
+    # but still experiences acute heatwave shock when Tx5d exceeds local adaptation threshold (>=26°C)
+    cold_base = dict(city_gdp=1e9, t_mean=-4.0, hw_days=25.0)
+    mild_summer = physics.compute_hybrid_economic_loss(tx5d=24.0, **cold_base)
+    heat_shock = physics.compute_hybrid_economic_loss(tx5d=32.0, **cold_base)
+    assert mild_summer == 0.0
+    assert heat_shock > 0.0
