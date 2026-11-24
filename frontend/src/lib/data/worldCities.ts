@@ -1408,6 +1408,23 @@ export const WORLD_CITIES: WorldCity[] = [
     "population": 11503000
   },
   {
+    "name": "Cherrapunji",
+    "country": "India",
+    "country_code": "IN",
+    "state": "Meghalaya",
+    "lat": 25.27,
+    "lng": 91.73,
+    "pop": 14814,
+    "aliases": [
+      "Sohra",
+      "Cherrapunjee"
+    ],
+    "id": "local-cherrapunji-in",
+    "latitude": 25.27,
+    "longitude": 91.73,
+    "population": 14814
+  },
+  {
     "name": "Chiang Mai",
     "country": "Thailand",
     "country_code": "TH",

@@ -4,6 +4,7 @@ import { useClimateData, formatDeathsRange, formatEconomicRange } from '@/contex
 import { formatCoord } from '@/lib/format';
 import { ConfidenceDot } from '@/components/ui/primitives';
 import { MapPin, X, Loader2 } from 'lucide-react';
+import { formatCityCountry, cleanCityName } from '@/lib/citySearch';
 
 export interface SuggestionCity {
   id:          string | number;
@@ -145,10 +146,11 @@ export const LeftPanel = ({
   }, [suggestions]);
 
   const selectCity = (city: SuggestionCity) => {
-    const label = city.display_name || [city.name, city.country].filter(Boolean).join(', ');
+    const cleanName = cleanCityName(city.name);
+    const label = formatCityCountry(cleanName, city.country);
     setSelectedCity({
       locationQuery: label,
-      name:          city.name,
+      name:          cleanName,
       country:       city.country,
       lat:           city.latitude,
       lng:           city.longitude,
@@ -264,7 +266,8 @@ export const LeftPanel = ({
               >
                 {suggestions.map((city, idx) => {
                   const isHighlighted = highlightedIndex === idx;
-                  const secondary = [city.state, city.country].filter(Boolean).join(', ');
+                  const cleanName = cleanCityName(city.name);
+                  const label = formatCityCountry(cleanName, city.country);
                   return (
                     <div
                       key={`${city.id}-${idx}`}
@@ -279,15 +282,10 @@ export const LeftPanel = ({
                       }`}
                     >
                       <MapPin size={12} className={isHighlighted ? 'text-cyan-400 shrink-0' : 'text-slate-500 shrink-0'} />
-                      <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center min-w-0 flex-1">
                         <span className="font-semibold text-white truncate text-[11px] leading-tight">
-                          {city.name}
+                          {label}
                         </span>
-                        {secondary && (
-                          <span className="text-[9px] font-mono text-slate-400 truncate mt-0.5">
-                            {secondary}
-                          </span>
-                        )}
                       </div>
                     </div>
                   );

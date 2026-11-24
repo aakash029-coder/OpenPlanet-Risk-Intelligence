@@ -398,6 +398,74 @@ _PHOTON_PLACE_RANK = {
     "village": 4, "suburb": 5, "locality": 6, "hamlet": 7,
 }
 
+_ADMIN_SUFFIX_PATTERN = re.compile(
+    r"\s+(?:Governorate|District|Tehsil|Tahsil|Taluka|Taluk|Sub-division|Subdivision|Sadar|Suburb|Municipality|Prefecture|County|City\s+Corporation|Metropolitan\s+Area)$",
+    re.IGNORECASE,
+)
+_ADMIN_PREFIX_PATTERN = re.compile(
+    r"^(?:Governorate\s+of|District\s+of|Municipality\s+of|County\s+of|Prefecture\s+of|City\s+of)\s+",
+    re.IGNORECASE,
+)
+
+_SUB_CITY_ROLLUP = {
+    "andheri": {"city": "Mumbai", "country": "India"},
+    "borivali": {"city": "Mumbai", "country": "India"},
+    "bandra": {"city": "Mumbai", "country": "India"},
+    "juhu": {"city": "Mumbai", "country": "India"},
+    "dadar": {"city": "Mumbai", "country": "India"},
+    "kurla": {"city": "Mumbai", "country": "India"},
+    "powai": {"city": "Mumbai", "country": "India"},
+    "colaba": {"city": "Mumbai", "country": "India"},
+    "manhattan": {"city": "New York", "country": "United States"},
+    "brooklyn": {"city": "New York", "country": "United States"},
+    "queens": {"city": "New York", "country": "United States"},
+    "bronx": {"city": "New York", "country": "United States"},
+    "staten island": {"city": "New York", "country": "United States"},
+    "new cairo": {"city": "Cairo", "country": "Egypt"},
+}
+
+_BLOCKED_PLACE_TYPES = {
+    "state", "province", "region", "county", "state_district",
+    "district", "subdistrict", "suburb", "neighbourhood", "neighborhood",
+    "city_district", "quarter", "borough", "ward", "postcode", "postal_code",
+    "administrative", "country", "continent",
+}
+
+
+def clean_city_name(raw_name: str) -> str:
+    """
+    Cleans city name by removing administrative suffixes/prefixes and rolling up sub-cities.
+    E.g. 'Varanasi Sadar' -> 'Varanasi', 'Cairo Governorate' -> 'Cairo', 'Andheri' -> 'Mumbai'.
+    """
+    if not raw_name:
+        return ""
+    name = raw_name.strip()
+
+    # Handle parenthetical aliases like 'Sohra (Cherrapunji)' or 'Cherrapunji (Sohra)'
+    m = re.match(r"^(.*?)\s*\((.*?)\)$", name)
+    if m:
+        p1, p2 = m.group(1).strip(), m.group(2).strip()
+        if "cherrapunji" in p2.lower():
+            name = p2
+        elif "cherrapunji" in p1.lower():
+            name = p1
+        else:
+            name = p1
+
+    name = _ADMIN_PREFIX_PATTERN.sub("", name).strip()
+
+    for _ in range(3):
+        prev = name
+        name = _ADMIN_SUFFIX_PATTERN.sub("", name).strip()
+        if name == prev:
+            break
+
+    low = name.lower()
+    if low in _SUB_CITY_ROLLUP:
+        return _SUB_CITY_ROLLUP[low]["city"]
+
+    return name
+
 
 def _photon_feature_rank(feature: Dict[str, Any]) -> int:
     props = feature.get("properties", {})
@@ -421,7 +489,7 @@ async def _search_photon_candidates(
     """Photon geocoder by Komoot — Elasticsearch-backed OSM data."""
     url = "https://photon.komoot.io/api/"
     city_token = _city_token_for_geocoder(query)
-    params = {"q": city_token, "limit": 10, "lang": "en"}
+    params = {"q": city_token, "limit": 15, "lang": "en"}
 
     resp = await client.get(url, params=params, headers=HEADERS, timeout=8.0)
     resp.raise_for_status()
@@ -444,22 +512,42 @@ async def _search_photon_candidates(
     candidates: List[GeocodingCandidate] = []
     seen: set = set()
     for f in city_features:
-        if len(candidates) >= 5:
+        if len(candidates) >= 8:
             break
         props = f.get("properties", {})
         coords = f.get("geometry", {}).get("coordinates", [0.0, 0.0])
 
+        osm_value = (props.get("osm_value") or "").lower()
+        feat_type = (props.get("type") or "").lower()
         country_code = (props.get("countrycode") or "").upper()
         country = props.get("country", "")
-        city_name = props.get("name") or props.get("city") or query.split(",")[0].strip()
+        city_prop = props.get("city")
+        name_prop = props.get("name") or ""
 
-        dedup_key = (city_name.lower(), country_code)
+        # Exclude standalone states, provinces, regions, counties
+        if osm_value in {"state", "province", "region", "county"} or feat_type in {"state", "province", "region", "county"}:
+            continue
+
+        # Handle sub-city divisions / suburbs
+        if osm_value in {"suburb", "neighbourhood", "neighborhood", "city_district", "quarter", "borough", "ward"} or feat_type in {"suburb", "district"}:
+            if city_prop:
+                raw_city = city_prop
+            elif name_prop.lower() in _SUB_CITY_ROLLUP:
+                raw_city = _SUB_CITY_ROLLUP[name_prop.lower()]["city"]
+            else:
+                continue
+        else:
+            raw_city = name_prop or city_prop or query.split(",")[0].strip()
+
+        city_name = clean_city_name(raw_city)
+        if not city_name or not country:
+            continue
+
+        display = f"{city_name}, {country}"
+        dedup_key = (city_name.lower(), country.lower())
         if dedup_key in seen:
             continue
         seen.add(dedup_key)
-
-        parts = [p for p in [city_name, props.get("state"), country] if p]
-        display = ", ".join(dict.fromkeys(parts))
 
         candidates.append(GeocodingCandidate(
             id=f"photon-{props.get('osm_id', len(candidates))}",
@@ -479,7 +567,7 @@ async def _search_nominatim_candidates(
     query: str, client: httpx.AsyncClient
 ) -> List[GeocodingCandidate]:
     url = "https://nominatim.openstreetmap.org/search"
-    params = {"q": query, "format": "json", "limit": 5, "addressdetails": 1}
+    params = {"q": query, "format": "json", "limit": 10, "addressdetails": 1, "featuretype": "settlement"}
     nom_headers = {
         **HEADERS,
         "User-Agent": "ClimateRisk-Research/2.1 (https://github.com/aakash029-coder/openplanet-climate; officialaakash029@gmail.com)",
@@ -492,18 +580,49 @@ async def _search_nominatim_candidates(
         data = resp.json()
 
     candidates: List[GeocodingCandidate] = []
-    for r in data[:5]:
+    seen: set = set()
+    for r in data:
+        if len(candidates) >= 8:
+            break
         address = r.get("address", {})
         country = address.get("country", "")
         country_code = (address.get("country_code") or "").upper()
-        city_name = (
-            address.get("city") or address.get("town") or address.get("municipality") or
-            r.get("name") or r.get("display_name", query).split(",")[0].strip()
-        )
+        addr_type = (r.get("addresstype") or "").lower()
+        r_type = (r.get("type") or "").lower()
+        r_name = r.get("name") or ""
+
+        # Block standalone states, counties, districts
+        if addr_type in {"state", "province", "region", "county", "state_district", "subdistrict", "postcode"} or r_type in {"administrative", "state", "county"}:
+            city_prop = address.get("city") or address.get("town")
+            if city_prop:
+                raw_city = city_prop
+            else:
+                continue
+        elif addr_type in {"suburb", "neighbourhood", "neighborhood", "city_district", "quarter", "borough", "ward"} or r_type in {"suburb"}:
+            city_prop = address.get("city") or address.get("town")
+            if city_prop:
+                raw_city = city_prop
+            elif r_name.lower() in _SUB_CITY_ROLLUP:
+                raw_city = _SUB_CITY_ROLLUP[r_name.lower()]["city"]
+            else:
+                continue
+        else:
+            raw_city = address.get("city") or address.get("town") or address.get("municipality") or address.get("village") or r_name
+
+        city_name = clean_city_name(raw_city)
+        if not city_name or not country:
+            continue
+
+        display = f"{city_name}, {country}"
+        dedup_key = (city_name.lower(), country.lower())
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
         candidates.append(GeocodingCandidate(
             id=str(r.get("place_id", f"nom-{len(candidates)}")),
             name=city_name,
-            display_name=r.get("display_name", ""),
+            display_name=display,
             country=country,
             country_code=country_code,
             latitude=float(r.get("lat", 0)),
@@ -518,7 +637,7 @@ async def _search_openmeteo_candidates(
 ) -> List[GeocodingCandidate]:
     url = "https://geocoding-api.open-meteo.com/v1/search"
     city_name_only = _city_token_for_geocoder(query)
-    params = {"name": city_name_only, "count": 5, "format": "json"}
+    params = {"name": city_name_only, "count": 10, "format": "json"}
 
     async with OPEN_METEO_SEMAPHORE:
         resp = await client.get(url, params=params, timeout=8.0)
@@ -535,14 +654,40 @@ async def _search_openmeteo_candidates(
                 results = filtered
 
     candidates: List[GeocodingCandidate] = []
-    for r in results[:5]:
+    seen: set = set()
+    for r in results:
+        if len(candidates) >= 8:
+            break
+        fc = (r.get("feature_code") or "").upper()
         country_code = (r.get("country_code") or "").upper()
-        admin1 = r.get("admin1", "")
         country = r.get("country", "")
-        display = ", ".join(p for p in [r.get("name", ""), admin1, country] if p)
+        raw_name = r.get("name", "")
+
+        # Block administrative divisions (states, counties)
+        if fc in {"ADM1", "ADM2", "ADM3", "ADM4", "CONT", "RGN"}:
+            continue
+        # Suburb / section of populated place
+        if fc == "PPLX":
+            if raw_name.lower() in _SUB_CITY_ROLLUP:
+                raw_city = _SUB_CITY_ROLLUP[raw_name.lower()]["city"]
+            else:
+                continue
+        else:
+            raw_city = raw_name
+
+        city_name = clean_city_name(raw_city)
+        if not city_name or not country:
+            continue
+
+        display = f"{city_name}, {country}"
+        dedup_key = (city_name.lower(), country.lower())
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
         candidates.append(GeocodingCandidate(
             id=str(r.get("id", f"om-{len(candidates)}")),
-            name=r.get("name", ""),
+            name=city_name,
             display_name=display,
             country=country,
             country_code=country_code,

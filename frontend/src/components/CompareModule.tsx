@@ -13,6 +13,8 @@ import {
   mergeSuggestions,
   getCachedSuggestions,
   setCachedSuggestions,
+  cleanCityName,
+  formatCityCountry,
   type CitySuggestion,
 } from '@/lib/citySearch';
 
@@ -181,7 +183,8 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
   }, [suggestions2]);
 
   const selectCity2 = (city: CitySuggestion) => {
-    const label = city.display_name || [city.name, city.country].filter(Boolean).join(', ');
+    const cleanName = cleanCityName(city.name);
+    const label = formatCityCountry(cleanName, city.country);
     setSearchQuery2(label);
     setCity2Geo({ display_name: label, lat: city.latitude, lng: city.longitude });
     setSuggestions2([]);
@@ -502,7 +505,8 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
               >
                 {suggestions2.map((city, idx) => {
                   const isHighlighted = highlightedIndex2 === idx;
-                  const secondary = [city.state, city.country].filter(Boolean).join(', ');
+                  const cleanName = cleanCityName(city.name);
+                  const label = formatCityCountry(cleanName, city.country);
                   return (
                     <div
                       key={`${city.id}-${idx}`}
@@ -517,15 +521,10 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
                       }`}
                     >
                       <MapPin size={12} className={isHighlighted ? 'text-cyan-400 shrink-0' : 'text-slate-500 shrink-0'} />
-                      <div className="flex flex-col min-w-0 flex-1">
+                      <div className="flex items-center min-w-0 flex-1">
                         <span className="font-semibold text-white truncate text-[11px] leading-tight">
-                          {city.name}
+                          {label}
                         </span>
-                        {secondary && (
-                          <span className="text-[9px] font-mono text-slate-400 truncate mt-0.5">
-                            {secondary}
-                          </span>
-                        )}
                       </div>
                     </div>
                   );
