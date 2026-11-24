@@ -190,7 +190,7 @@ export default function MapCanvas({
       )}
 
       {/* API error */}
-      {apiError && (
+      {apiError && !(selectedCity && Number.isFinite(selectedCity.lat) && Math.abs(selectedCity.lat!) >= 0.001 && apiError.includes("Location not found")) && (
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 bg-[#08080A]/95 px-5 py-3" style={{ border: '1px solid var(--heat-4)' }}>
           <p className="text-[10px] font-mono text-red-400 flex items-center gap-2 font-bold uppercase tracking-widest">
             <span className="text-red-500">⚠</span> {apiError}

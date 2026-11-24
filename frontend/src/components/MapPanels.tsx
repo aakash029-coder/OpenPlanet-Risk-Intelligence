@@ -207,7 +207,9 @@ export const LeftPanel = ({
                 if (suggestions.length === 0) {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleInitialize();
+                    if (canGenerate) {
+                      handleInitialize();
+                    }
                   }
                   return;
                 }
@@ -223,7 +225,7 @@ export const LeftPanel = ({
                   const target = highlightedIndex >= 0 ? suggestions[highlightedIndex] : suggestions[0];
                   if (target) {
                     selectCity(target);
-                  } else {
+                  } else if (canGenerate) {
                     handleInitialize();
                   }
                 } else if (e.key === 'Escape') {
@@ -290,6 +292,17 @@ export const LeftPanel = ({
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* When all tiers return empty / location not found */}
+            {suggestions.length === 0 && !selectedCity && searchQuery.trim().length >= 2 && !isSearchingRemote && (
+              <div
+                className="absolute top-full left-0 w-full mt-1 bg-[#090d16] border border-amber-500/30 p-2.5 z-[9999] shadow-2xl rounded-none"
+              >
+                <p className="text-[10px] font-mono text-amber-400 flex items-center gap-1.5">
+                  <span>Location not found—please select from dropdown.</span>
+                </p>
               </div>
             )}
           </div>
@@ -372,6 +385,13 @@ export const LeftPanel = ({
             </span>
           )}
         </button>
+
+        {/* Warning when city is unselected or coordinates missing */}
+        {!canGenerate && searchQuery.trim().length >= 2 && !selectedCity && !isLoading && (
+          <p className="text-[9px] font-mono text-amber-400/90 text-center -mt-1 leading-tight">
+            Location not found—please select from dropdown.
+          </p>
+        )}
 
         {/* Cold-start notice — shown after 8 s of loading */}
         {isLoading && slowLoad && (

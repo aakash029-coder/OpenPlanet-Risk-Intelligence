@@ -98,11 +98,13 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
     _vault_key = _coords_vault_key(location_hint)
     if _vault_key:
         _cv = _CITY_COORDS[_vault_key]
+        resolved_lat = req.lat if (abs(req.lat) >= 0.001 or abs(req.lng) >= 0.001) else float(_cv.get("lat", 0.0))
+        resolved_lng = req.lng if (abs(req.lat) >= 0.001 or abs(req.lng) >= 0.001) else float(_cv.get("lng", 0.0))
         geo = GeocodingResult(
             city_population=0,
             country_code=_cv["country_code"],
-            latitude=req.lat,
-            longitude=req.lng,
+            latitude=resolved_lat,
+            longitude=resolved_lng,
             source="city_coords_vault",
         )
         logger.info(
@@ -114,9 +116,19 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
             async with httpx.AsyncClient(timeout=30.0, trust_env=False) as geo_client:
                 geo = await geocode_city(location_hint, geo_client)
         except Exception as exc:
-            raise _data_unavailable(
-                f"Could not geocode '{location_hint}': {exc}"
-            )
+            if abs(req.lat) >= 0.001 or abs(req.lng) >= 0.001:
+                geo = GeocodingResult(
+                    city_population=0,
+                    country_code="UN",
+                    latitude=req.lat,
+                    longitude=req.lng,
+                    source="request_coords",
+                )
+            else:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Location not found—please select from dropdown.",
+                )
         logger.info(
             "[predict] geocoded '%s' -> (%.2f, %.2f) via %s",
             location_hint, round(geo.latitude, 2), round(geo.longitude, 2), geo.source,
@@ -124,6 +136,13 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
 
     lat = geo.latitude
     lng = geo.longitude
+
+    # Hard Guardrail: Never allow lat = 0, lon = 0 to proceed to CMIP6/ERA5 model
+    if abs(lat) < 0.001 and abs(lng) < 0.001:
+        raise HTTPException(
+            status_code=422,
+            detail="Location not found—please select from dropdown.",
+        )
 
     # ── 0b. DEM-reconciled elevation (Copernicus DEM → SRTM30m fallback) ──────
     # Vault coords carry no elevation; geocoded results already DEM-reconciled.

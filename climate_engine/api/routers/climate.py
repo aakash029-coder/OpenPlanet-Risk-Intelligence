@@ -66,6 +66,12 @@ async def climate_risk(request: Request, req: ClimateRiskRequest, response: Resp
     )
 
     # ── Baseline ──────────────────────────────────────────────────────────────
+    if abs(req.lat) < 0.001 and abs(req.lng) < 0.001:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Location not found—please select from dropdown.",
+        )
+
     try:
         baseline = await fetch_historical_baseline_full(req.lat, req.lng)
     except Exception as exc:

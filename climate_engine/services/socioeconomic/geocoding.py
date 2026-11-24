@@ -4,8 +4,11 @@ climate_engine/services/socioeconomic/geocoding.py — Geocoding providers (Phot
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set
 
@@ -636,8 +639,10 @@ async def _search_openmeteo_candidates(
     query: str, client: httpx.AsyncClient
 ) -> List[GeocodingCandidate]:
     url = "https://geocoding-api.open-meteo.com/v1/search"
-    city_name_only = _city_token_for_geocoder(query)
-    params = {"name": city_name_only, "count": 10, "format": "json"}
+    country_hint = _location_country_hint(query)
+    codes = _country_codes_from_hint(country_hint) if country_hint else set()
+    search_name = _city_token_for_geocoder(query) if (codes or "," not in query) else query
+    params = {"name": search_name, "count": 10, "format": "json"}
 
     async with OPEN_METEO_SEMAPHORE:
         resp = await client.get(url, params=params, timeout=8.0)
@@ -645,13 +650,10 @@ async def _search_openmeteo_candidates(
         data = resp.json()
 
     results = data.get("results", [])
-    country_hint = _location_country_hint(query)
-    if country_hint:
-        codes = _country_codes_from_hint(country_hint)
-        if codes:
-            filtered = [r for r in results if (r.get("country_code") or "").upper() in codes]
-            if filtered:
-                results = filtered
+    if codes:
+        filtered = [r for r in results if (r.get("country_code") or "").upper() in codes]
+        if filtered:
+            results = filtered
 
     candidates: List[GeocodingCandidate] = []
     seen: set = set()
@@ -698,46 +700,134 @@ async def _search_openmeteo_candidates(
     return candidates
 
 
+try:
+    _COORDS_VAULT_PATH = os.path.join(
+        os.path.dirname(__file__), "../../data/city_coords.json"
+    )
+    with open(_COORDS_VAULT_PATH, "r", encoding="utf-8") as _f:
+        _LOCAL_CITY_COORDS: Dict[str, Any] = json.load(_f)
+except Exception:
+    _LOCAL_CITY_COORDS = {}
+
+
+def _search_local_vault_candidates(query: str) -> List[GeocodingCandidate]:
+    """Tier 1: Pre-cached local dictionary lookup (instant, 0ms latency)."""
+    norm_q = re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFD", query).lower())
+    if len(norm_q) < 2:
+        return []
+
+    candidates: List[GeocodingCandidate] = []
+    seen: set = set()
+    for key, data in _LOCAL_CITY_COORDS.items():
+        norm_key = re.sub(r"[^a-z0-9]", "", key.lower())
+        parts = key.split("_")
+        raw_city = parts[0].capitalize()
+        city_name = clean_city_name(raw_city)
+        country_code = (data.get("country_code") or "").upper()
+        country_obj = pycountry.countries.get(alpha_2=country_code)
+        country_name = country_obj.name if country_obj else (parts[-1].capitalize() if len(parts) > 1 else "")
+
+        if norm_q in norm_key or norm_key.startswith(norm_q) or norm_q in city_name.lower():
+            display = f"{city_name}, {country_name}" if country_name else city_name
+            dedup = (city_name.lower(), country_name.lower())
+            if dedup in seen:
+                continue
+            seen.add(dedup)
+            lat = float(data.get("lat", 0.0))
+            lng = float(data.get("lng", 0.0))
+            if _is_null_island(lat, lng):
+                continue
+            candidates.append(GeocodingCandidate(
+                id=f"vault-{key}",
+                name=city_name,
+                display_name=display,
+                country=country_name,
+                country_code=country_code,
+                latitude=lat,
+                longitude=lng,
+                source="local-dictionary",
+            ))
+            if len(candidates) >= 5:
+                break
+    return candidates
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
 async def search_geocode_candidates(
     query: str, client: httpx.AsyncClient
 ) -> List[GeocodingCandidate]:
     """
-    Returns up to 5 location candidates for autocomplete.
-    3-tier cascade (all free, no API keys required):
-      Tier 1: Photon/Komoot — Elasticsearch-backed OSM, sub-100ms, no rate limit
-      Tier 2: Open-Meteo — GeoNames data, population-weighted ranking
-      Tier 3: Nominatim — authoritative OSM, rate-limited to 1 req/sec
+    Returns up to 8 location candidates for autocomplete.
+    Chained in exact order:
+      1. Tier 1 (Local Dictionary): Check pre-cached cities first (instant, zero latency).
+      2. Tier 2 (Open-Meteo API): Fetch from Open-Meteo (handles 99.9% of global cities/towns in <100ms).
+      3. Tier 3 (Nominatim Fallback): If Open-Meteo returns empty (e.g. Sola, Ahmedabad), fall back to Nominatim.
+      4. Hard Guardrail: Never allow lat = 0, lon = 0.
     """
     location_query = _prepare_geocoding_query(query)
 
-    try:
-        results = await _search_photon_candidates(location_query, client)
-        if results:
-            return results
-    except Exception as e:
-        logger.warning("Photon search failed for '%s': %s", location_query, e)
+    # ── 1. Tier 1 (Local Dictionary) ──────────────────────────────────────────
+    local_candidates = _search_local_vault_candidates(location_query)
 
+    # ── 2. Tier 2 (Open-Meteo API) ────────────────────────────────────────────
+    om_candidates: List[GeocodingCandidate] = []
     try:
-        results = await _search_openmeteo_candidates(location_query, client)
-        if results:
-            return results
+        om_candidates = await _search_openmeteo_candidates(location_query, client)
     except Exception as e:
         logger.warning("Open-Meteo search failed for '%s': %s", location_query, e)
 
+    candidates: List[GeocodingCandidate] = []
+    seen: set = set()
+
+    for c in local_candidates + om_candidates:
+        if _is_null_island(c.latitude, c.longitude):
+            continue
+        key = (c.name.lower(), c.country.lower())
+        if key not in seen:
+            seen.add(key)
+            candidates.append(c)
+
+    if candidates:
+        return candidates[:8]
+
+    # ── 3. Tier 3 (Nominatim Fallback) ────────────────────────────────────────
+    # If Open-Meteo returns empty (e.g. for specific districts/neighborhoods like 'Sola, Ahmedabad')
     try:
-        return await _search_nominatim_candidates(location_query, client)
+        nom_candidates = await _search_nominatim_candidates(location_query, client)
+        for c in nom_candidates:
+            if _is_null_island(c.latitude, c.longitude):
+                continue
+            key = (c.name.lower(), c.country.lower())
+            if key not in seen:
+                seen.add(key)
+                candidates.append(c)
+        if candidates:
+            return candidates[:8]
     except Exception as e:
         logger.warning("Nominatim search failed for '%s': %s", location_query, e)
 
-    return []
+    # Optional Tier 3b: Photon fallback if Nominatim also returned empty
+    try:
+        photon_candidates = await _search_photon_candidates(location_query, client)
+        for c in photon_candidates:
+            if _is_null_island(c.latitude, c.longitude):
+                continue
+            key = (c.name.lower(), c.country.lower())
+            if key not in seen:
+                seen.add(key)
+                candidates.append(c)
+    except Exception:
+        pass
+
+    return candidates[:8]
 
 
 async def geocode_city(city: str, client: httpx.AsyncClient) -> GeocodingResult:
     """
     Geocode a single location to precise WGS-84 coordinates.
-    3-tier cascade: Photon → Open-Meteo → Nominatim.
+    Chained in exact order:
+      Tier 1 (Local Dictionary) -> Tier 2 (Open-Meteo) -> Tier 3 (Nominatim) -> Photon -> Hard Guardrail.
     """
     location_query = _prepare_geocoding_query(city)
     if location_query.lower() != city.strip().lower():
@@ -753,6 +843,38 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> GeocodingResult:
             source=c.source,
         )
 
+    # 1. Tier 1 (Local Dictionary)
+    local_candidates = _search_local_vault_candidates(location_query)
+    for c in local_candidates:
+        if not _is_null_island(c.latitude, c.longitude):
+            logger.info("[geocode] Local Dictionary resolved '%s' -> (%.4f, %.4f)", location_query, c.latitude, c.longitude)
+            return await _finalize_geocode(_candidate_to_result(c), client)
+
+    # 2. Tier 2 (Open-Meteo API)
+    try:
+        om_candidates = [
+            c for c in await _search_openmeteo_candidates(location_query, client)
+            if not _is_null_island(c.latitude, c.longitude)
+        ]
+        if om_candidates:
+            logger.info("[geocode] Open-Meteo resolved '%s' -> (%.4f, %.4f)", location_query, om_candidates[0].latitude, om_candidates[0].longitude)
+            return await _finalize_geocode(_candidate_to_result(om_candidates[0]), client)
+    except Exception as e:
+        logger.warning("Open-Meteo geocoding failed for '%s': %s", location_query, e)
+
+    # 3. Tier 3 (Nominatim Fallback)
+    try:
+        nom_candidates = [
+            c for c in await _search_nominatim_candidates(location_query, client)
+            if not _is_null_island(c.latitude, c.longitude)
+        ]
+        if nom_candidates:
+            logger.info("[geocode] Nominatim resolved '%s' -> (%.4f, %.4f)", location_query, nom_candidates[0].latitude, nom_candidates[0].longitude)
+            return await _finalize_geocode(_candidate_to_result(nom_candidates[0]), client)
+    except Exception as e:
+        logger.warning("Nominatim geocoding failed for '%s': %s", location_query, e)
+
+    # Optional Tier 3b: Photon fallback
     try:
         candidates = [
             c for c in await _search_photon_candidates(location_query, client)
@@ -767,19 +889,5 @@ async def geocode_city(city: str, client: httpx.AsyncClient) -> GeocodingResult:
     except Exception as e:
         logger.warning("Photon geocoding failed for '%s': %s", location_query, e)
 
-    try:
-        return await _finalize_geocode(
-            await _fetch_openmeteo_geocoding(location_query, client), client
-        )
-    except ValueError as e:
-        logger.warning("Open-Meteo geocoding failed for '%s': %s", location_query, e)
+    raise ValueError(f"Location not found—please select from dropdown. Geocoding failed across all tiers for: {city}")
 
-    try:
-        return await _finalize_geocode(
-            await _fetch_nominatim_geocoding(location_query, client), client
-        )
-    except ValueError as e:
-        raise ValueError(
-            f"All geocoding providers failed for '{city}' (query: '{location_query}'). "
-            f"Please verify spelling or input a major surrounding municipality. Log: {e}"
-        ) from e

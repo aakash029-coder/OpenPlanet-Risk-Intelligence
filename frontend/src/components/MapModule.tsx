@@ -138,7 +138,22 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
     } catch { /* Generation failed */ } finally { setPdfBusy(false); }
   }, [pdfBusy, primaryData, year, aiAnalysis, historicalEras]);
 
-  const canGenerate = selectedCity !== null;
+  const hasValidCoords = Boolean(
+    selectedCity &&
+    Number.isFinite(selectedCity.lat ?? selectedCity.latitude) &&
+    Number.isFinite(selectedCity.lng ?? selectedCity.longitude) &&
+    (Math.abs((selectedCity.lat ?? selectedCity.latitude)!) >= 0.001 ||
+     Math.abs((selectedCity.lng ?? selectedCity.longitude)!) >= 0.001)
+  );
+
+  const canGenerate = hasValidCoords && !isLoading;
+
+  // Auto-clear stale location error as soon as valid coordinates are present
+  useEffect(() => {
+    if (hasValidCoords && apiError?.includes("Location not found")) {
+      setApiError(null);
+    }
+  }, [hasValidCoords, apiError]);
 
   const currentProjection = useMemo(() => {
     if (!primaryData?.projections?.length) return null;
@@ -247,12 +262,43 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
     }
   }, [hexData]);
 
-  const handleInitialize = useCallback(async (passedCity?: SelectedCity) => {
-    const locationQuery = (passedCity?.locationQuery || selectedCity?.locationQuery || searchQuery).trim();
+  const handleInitialize = useCallback(async (passedCity?: SelectedCity | unknown) => {
+    // Guard against React synthetic mouse/form event being treated as a SelectedCity
+    const validPassedCity: SelectedCity | null =
+      passedCity && typeof passedCity === 'object' && !('nativeEvent' in passedCity) && ('lat' in passedCity || 'lng' in passedCity || 'locationQuery' in passedCity)
+        ? (passedCity as SelectedCity)
+        : null;
+
+    const locationQuery = (validPassedCity?.locationQuery || selectedCity?.locationQuery || searchQuery).trim();
     if (!locationQuery) return;
-    const cityToLoad: SelectedCity = passedCity || selectedCity || { locationQuery };
-    const requestLat = cityToLoad.lat ?? cityToLoad.latitude ?? 0;
-    const requestLng = cityToLoad.lng ?? cityToLoad.longitude ?? 0;
+
+    let cityToLoad: SelectedCity = validPassedCity || selectedCity || { locationQuery };
+    let requestLat = cityToLoad.lat ?? cityToLoad.latitude ?? 0;
+    let requestLng = cityToLoad.lng ?? cityToLoad.longitude ?? 0;
+
+    // If coordinates are 0, try Tier 1 local search fallback before failing
+    if (Math.abs(requestLat) < 0.001 && Math.abs(requestLng) < 0.001) {
+      const localMatches = searchLocalCities(locationQuery, 1);
+      if (localMatches.length > 0 && (Math.abs(localMatches[0].latitude) >= 0.001 || Math.abs(localMatches[0].longitude) >= 0.001)) {
+        requestLat = localMatches[0].latitude;
+        requestLng = localMatches[0].longitude;
+        cityToLoad = {
+          ...cityToLoad,
+          lat: requestLat,
+          lng: requestLng,
+          name: cityToLoad.name || localMatches[0].name,
+          country: cityToLoad.country || localMatches[0].country,
+        };
+      }
+    }
+
+    // Hard Guardrail: Never allow lat = 0, lon = 0 to proceed to CMIP6/ERA5 model
+    if (Math.abs(requestLat) < 0.001 && Math.abs(requestLng) < 0.001) {
+      setApiError("Location not found—please select from dropdown.");
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true); setApiError(null); setCanopy(0); setCoolRoof(0);
     setHistoricalEras(null); setHexData([]); setIsInitialized(false);
     const cleanName = cityToLoad.name && cityToLoad.country
@@ -263,9 +309,26 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: '/api/predict', payload: { city: locationQuery, lat: requestLat, lng: requestLng, ssp, year, canopy: 0, coolRoof: 0 } }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        let errorDetail = `HTTP ${res.status}`;
+        try {
+          const errData = await res.json();
+          if (errData.error) errorDetail = errData.error;
+          else if (errData.detail) errorDetail = typeof errData.detail === 'string' ? errData.detail : JSON.stringify(errData.detail);
+        } catch { /* use status code */ }
+
+        if (errorDetail.toLowerCase().includes("location not found")) {
+          throw new Error("Location not found—please select from dropdown.");
+        }
+        throw new Error(errorDetail);
+      }
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (data.error) {
+        if (typeof data.error === 'string' && data.error.toLowerCase().includes('location not found')) {
+          throw new Error("Location not found—please select from dropdown.");
+        }
+        throw new Error(data.error);
+      }
       const resolved = data.resolvedLocation;
       const resolvedLat = typeof (resolved?.lat ?? resolved?.latitude) === 'number' ? (resolved?.lat ?? resolved?.latitude) : requestLat;
       const resolvedLng = typeof (resolved?.lng ?? resolved?.longitude) === 'number' ? (resolved?.lng ?? resolved?.longitude) : requestLng;
@@ -297,7 +360,14 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
     const city = urlParams.get('city');
     if (!city) return;
     didAutoRun.current = true;
-    const lat = parseFloat(urlParams.get('lat') || ''), lng = parseFloat(urlParams.get('lng') || '');
+    let lat = parseFloat(urlParams.get('lat') || ''), lng = parseFloat(urlParams.get('lng') || '');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      const match = searchLocalCities(city, 1);
+      if (match.length > 0) {
+        lat = match[0].latitude;
+        lng = match[0].longitude;
+      }
+    }
     const seeded: SelectedCity = { locationQuery: city, name: city.split(',')[0]?.trim() || city, ...(Number.isFinite(lat) ? { lat, latitude: lat } : {}), ...(Number.isFinite(lng) ? { lng, longitude: lng } : {}) };
     setSearchQuery(city); setSelectedCity(seeded); handleInitialize(seeded);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,7 +390,7 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
           selectedCity={selectedCity} searchQuery={searchQuery} setSearchQuery={setSearchQuery}
           suggestions={suggestions} setSuggestions={setSuggestions} setSelectedCity={setSelectedCity}
           year={year} setYear={setYear} ssp={ssp} setSsp={setSsp}
-          handleInitialize={handleInitialize} isLoading={isLoading} isInitialized={isInitialized}
+          handleInitialize={() => handleInitialize()} isLoading={isLoading} isInitialized={isInitialized}
           canGenerate={canGenerate} canopy={canopy} coolRoof={coolRoof}
           handleMitigationChange={(t: 'canopy' | 'coolRoof', v: number) => t === 'canopy' ? setCanopy(v) : setCoolRoof(v)}
           isSimulating={isSimulating}
