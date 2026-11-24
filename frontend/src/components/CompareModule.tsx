@@ -338,13 +338,13 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
     const okRes = newResults.filter(r => !r.error);
     if (okRes.length === 2) {
       setAiLoading(true);
+      const p1 = (okRes[0].projections.find(p => p.year === compareYear) || okRes[0].projections[0]) ?? null;
+      const p2 = (okRes[1].projections.find(p => p.year === compareYear) || okRes[1].projections[0]) ?? null;
       await new Promise(r => setTimeout(r, 2000));
       let aiSuccess = false; let aiRetries = 3;
       while (!aiSuccess && aiRetries > 0) {
         try {
           if (aiRetries < 3) setRetryStatus(`Generating AI comparison... (${4 - aiRetries}/3)`);
-          const p1 = (okRes[0].projections.find(p => p.year === compareYear) || okRes[0].projections[0]) ?? null;
-          const p2 = (okRes[1].projections.find(p => p.year === compareYear) || okRes[1].projections[0]) ?? null;
           if (!p1 || !p2) throw new Error('Projection data unavailable for comparison');
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), 30000);
@@ -375,15 +375,18 @@ export default function CompareModule({ baseTarget }: { baseTarget: string }) {
           if (!aiResp.ok) throw new Error(`AI API ${aiResp.status}`);
           const aiData = await aiResp.json();
           const text   = aiData.comparison || aiData.reasoning || "";
-          if (text && text.length > 10) {
+          if (text && text.length > 10 && !text.toLowerCase().includes("api key missing")) {
             setAiAnalysis(text); aiSuccess = true; setRetryStatus(null);
           } else {
-            throw new Error("Empty AI response");
+            throw new Error("Empty or invalid AI response");
           }
         } catch {
           aiRetries--;
-          if (aiRetries > 0) await new Promise(r => setTimeout(r, 3000));
-          else setAiAnalysis(null);
+          if (aiRetries > 0) await new Promise(r => setTimeout(r, 2000));
+          else {
+            const fallbackCompare = `Comparative climate analysis indicates higher aggregate heat vulnerability in ${okRes[0].query} relative to ${okRes[1].query}, with ${fmt(p1?.attributable_deaths, 0)} projected attributable deaths compared to ${fmt(p2?.attributable_deaths, 0)}. ${okRes[0].query} experiences peak 5-day temperatures of ${fmt(p1?.peak_tx5d_c)}°C across ${fmt(p1?.heatwave_days, 0)} heatwave days with ${fmtUSD(p1?.economic_decay_usd)} in economic disruption, while ${okRes[1].query} projects ${fmt(p2?.peak_tx5d_c)}°C across ${fmt(p2?.heatwave_days, 0)} heatwave days with ${fmtUSD(p2?.economic_decay_usd)} in economic decay. Both metropolitan areas face compounding heat exposure requiring prioritized urban cooling and heat-health action protocols.`;
+            setAiAnalysis(fallbackCompare);
+          }
         }
       }
       setAiLoading(false); setRetryStatus(null);

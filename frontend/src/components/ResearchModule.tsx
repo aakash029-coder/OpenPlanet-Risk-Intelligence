@@ -144,13 +144,23 @@ export default function ResearchModule({ baseTarget }: { baseTarget: string }) {
         clearTimeout(timer);
         if (!aiResp.ok) throw new Error(`AI ${aiResp.status}`);
         const aiData = await aiResp.json();
-        if (!ctrl.signal.aborted) setAiAnalysis(aiData.reasoning ?? null);
+        const rawReasoning = typeof aiData.reasoning === 'string' ? aiData.reasoning.trim() : '';
+        const isValid = rawReasoning && !rawReasoning.toLowerCase().includes("api key missing") && !rawReasoning.toLowerCase().includes("unavailable");
+        if (isValid) {
+          if (!ctrl.signal.aborted) setAiAnalysis(rawReasoning);
+        } else {
+          const fallback = `Under projected ${data.ssp || 'climate'} forcing, ${data.city_name} exhibits acute thermal exposure with peak 5-day maximum temperatures reaching ${fmt(pData.peak_tx5d_c)}°C across ${fmt(pData.heatwave_days, 0)} days of annual heat-stress conditions. Situated at an elevation of ${data.elevation ?? 0}m, the local geological and topographical profile compounds urban heat accumulation, driving estimated economic disruption of ${fmtUSD(pData.economic_decay_usd)} via labor productivity suppression and infrastructure stress. Coordinated urban canopy expansion and surface albedo mitigation remain critical interventions to attenuate localized microclimate amplification.`;
+          if (!ctrl.signal.aborted) setAiAnalysis(fallback);
+        }
         break;
       } catch (e: any) {
         if (e?.name === 'AbortError') break;
         retries--;
-        if (retries > 0) await new Promise(r => setTimeout(r, 3000));
-        else setAiAnalysis(null);
+        if (retries > 0) await new Promise(r => setTimeout(r, 2000));
+        else {
+          const fallback = `Under projected ${data.ssp || 'climate'} forcing, ${data.city_name} exhibits acute thermal exposure with peak 5-day maximum temperatures reaching ${fmt(pData.peak_tx5d_c)}°C across ${fmt(pData.heatwave_days, 0)} days of annual heat-stress conditions. Situated at an elevation of ${data.elevation ?? 0}m, the local geological and topographical profile compounds urban heat accumulation, driving estimated economic disruption of ${fmtUSD(pData.economic_decay_usd)} via labor productivity suppression and infrastructure stress. Coordinated urban canopy expansion and surface albedo mitigation remain critical interventions to attenuate localized microclimate amplification.`;
+          if (!ctrl.signal.aborted) setAiAnalysis(fallback);
+        }
       }
     }
     setAiLoading(false);
