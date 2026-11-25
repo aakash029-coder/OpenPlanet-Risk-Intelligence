@@ -281,15 +281,19 @@ export function formatWBT(wbt: number): string {
 
 /**
  * Format economic loss with confidence interval (±8%)
- * Best-practice statistics — not a point estimate
+ * Best-practice statistics — not a point estimate.
+ * Formats values below $1,000,000 in thousands ($161K – $189K) instead of rounding to $0M – $0M.
+ * Leaves everything above $1M unchanged.
  */
 export function formatEconomicRange(usd: number): string {
   const low  = usd * 0.92;
   const high = usd * 1.08;
-  const fmt  = (v: number) =>
-    v >= 1e9
-      ? `$${(v / 1e9).toFixed(1)}B`
-      : `$${(v / 1e6).toFixed(0)}M`;
+  const fmt  = (v: number) => {
+    if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+    if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+    if (v > 0) return `$${(v / 1e3).toFixed(0)}K`;
+    return '$0';
+  };
   return `${fmt(low)} – ${fmt(high)}`;
 }
 
