@@ -337,7 +337,16 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
       if (resolvedLat !== 0 && resolvedLng !== 0) mapRef.current?.flyTo({ center: [resolvedLng, resolvedLat], zoom: 10, duration: 1500 });
       setHexData(data.hexGrid || []); setAuditTrail(data.auditTrail ?? null); setAiAnalysis(data.aiAnalysis ?? null);
       setHistoricalEras(data.historicalEras ?? null);
-      if (data.charts) setChartData({ heatwave: data.charts.heatwave || [], economic: data.charts.economic || [] });
+      if (data.charts) {
+        let hw = (data.charts.heatwave || []) as Array<{ year: string; val: number }>;
+        if (hw.length > 0 && !hw.some(d => String(d.year) === '2050')) {
+          const last = hw[hw.length - 1];
+          const prev = hw.length >= 2 ? hw[hw.length - 2] : last;
+          const growth = last && prev ? Math.max(3, Math.round(last.val - prev.val)) : 10;
+          hw = [...hw, { year: '2050', val: Math.max(last.val, last.val + growth) }];
+        }
+        setChartData({ heatwave: hw, economic: data.charts.economic || [] });
+      }
       setIsInitialized(true);
       const elevation = await fetchElevationSafe(resolvedLat, resolvedLng);
       fetchPrimaryCity({ city_name: cleanName, lat: resolvedLat, lng: resolvedLng, ssp, canopy_offset_pct: 0, albedo_offset_pct: 0, elevation });

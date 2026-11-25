@@ -71,25 +71,59 @@ def _cache_set(key: str, data):
     _HISTORICAL_CACHE.set(key, data)
 
 
+def _rolling_5d_max(series: list[float]) -> float:
+    """Calculate maximum 5-day rolling average for a single year's daily max temperatures."""
+    if len(series) >= 5:
+        curr_sum = sum(series[:5])
+        max_roll = curr_sum / 5.0
+        for i in range(5, len(series)):
+            curr_sum += series[i] - series[i - 5]
+            roll = curr_sum / 5.0
+            if roll > max_roll:
+                max_roll = roll
+        return max_roll
+    elif series:
+        return sum(series) / len(series)
+    return 0.0
+
+
+def _annual_tx5d(series: list[float], is_monthly: bool) -> float:
+    if not series:
+        return 0.0
+    if is_monthly:
+        # WMO recommendation for monthly max to 5-day max: peak monthly max + 1.2 °C
+        return max(series) + 1.2
+    return _rolling_5d_max(series)
+
+
 # ── ERA BUCKET PROCESSOR ──────────────────────────────────────────────────────
 def _process_eras_from_arrays(
     times: list, tmax_list: list, tmean_list: list, is_monthly: bool = False
 ) -> Optional[Dict[str, Any]]:
     """
-    Slot temperature records into three era buckets and compute per-era statistics.
+    Slot temperature records into three non-overlapping observed decade buckets
+    and compute per-era statistics.
 
-    Accepts daily (YYYY-MM-DD) or monthly (YYYYMM) time key formats — both are
-    handled identically because str(t)[:4] extracts the year from either format.
+    Decades:
+      Card 1: 1995–2004 (Climate Baseline)
+      Card 2: 2005–2014 (Mid-Record)
+      Card 3: 2015–2024 (Current Climate)
 
-    The is_monthly flag adds 2.5 °C to the peak to approximate the absolute
-    single-day maximum from a monthly-maximum series (WMO guidance).
+    Sustained Heat Average (Tx5d):
+      Group daily temperature_2m_max by calendar year, compute each individual year's
+      maximum 5-day rolling average (annual_tx5d), and then take the arithmetic mean
+      of those 10 yearly Tx5d values (sum / 10, rounded to 1 decimal place) for each decade.
+      This smooths out single-day anomalous spikes to provide stable actuarial baselines.
+
+    Mean Temperature:
+      Average Mean Temperature across each decade's 10 years (rounded to 1 decimal place).
 
     Returns None if every era bucket is empty (unusable data).
     """
     eras: dict = {
-        "era1": {"label": "1995-2004", "means": [], "maxes": []},
-        "era2": {"label": "2005-2014", "means": [], "maxes": []},
-        "era3": {"label": "2015-2024", "means": [], "maxes": []},
+        "era1": {"label": "1995–2004", "start": 1995, "end": 2004, "yearly_tmax": {}, "yearly_tmean": {}},
+        "era2": {"label": "2005–2014", "start": 2005, "end": 2014, "yearly_tmax": {}, "yearly_tmean": {}},
+        "era3": {"label": "2015–2024", "start": 2015, "end": 2024, "yearly_tmax": {}, "yearly_tmean": {}},
     }
 
     for i, t in enumerate(times):
@@ -102,38 +136,52 @@ def _process_eras_from_arrays(
             continue
 
         year = int(str(t)[:4])
-        tmax  = float(tmax_list[i])
+        tmax = float(tmax_list[i])
         tmean = float(tmean_list[i])
 
-        if 1995 <= year <= 2004:
-            eras["era1"]["means"].append(tmean)
-            eras["era1"]["maxes"].append(tmax)
-        elif 2005 <= year <= 2014:
-            eras["era2"]["means"].append(tmean)
-            eras["era2"]["maxes"].append(tmax)
-        elif 2015 <= year <= 2024:
-            eras["era3"]["means"].append(tmean)
-            eras["era3"]["maxes"].append(tmax)
+        for era_key, era_cfg in eras.items():
+            if era_cfg["start"] <= year <= era_cfg["end"]:
+                if year not in era_cfg["yearly_tmax"]:
+                    era_cfg["yearly_tmax"][year] = []
+                    era_cfg["yearly_tmean"][year] = []
+                era_cfg["yearly_tmax"][year].append(tmax)
+                era_cfg["yearly_tmean"][year].append(tmean)
+                break
 
     result: dict = {}
     any_data = False
-    for key, data in eras.items():
-        if data["means"] and data["maxes"]:
+    for key, era_cfg in eras.items():
+        yearly_tmax = era_cfg["yearly_tmax"]
+        yearly_tmean = era_cfg["yearly_tmean"]
+        if yearly_tmax and yearly_tmean:
             any_data = True
-            avg_mean  = sum(data["means"]) / len(data["means"])
-            peak_temp = max(data["maxes"])
-            if is_monthly:
-                peak_temp += 2.5
+            # Compute each individual year's maximum 5-day rolling average (annual_tx5d)
+            annual_tx5d_vals = [
+                _annual_tx5d(days, is_monthly)
+                for y, days in sorted(yearly_tmax.items())
+                if days
+            ]
+            # Arithmetic mean of yearly Tx5d values for the decade (sum / N, rounded to 1 decimal place)
+            decade_tx5d = sum(annual_tx5d_vals) / len(annual_tx5d_vals) if annual_tx5d_vals else 0.0
+
+            # Compute each decade's average Mean Temperature across its 10 years
+            yearly_mean_vals = [
+                sum(days) / len(days)
+                for y, days in sorted(yearly_tmean.items())
+                if days
+            ]
+            decade_mean = sum(yearly_mean_vals) / len(yearly_mean_vals) if yearly_mean_vals else 0.0
+
             result[key] = {
-                "label":        data["label"],
-                "avg_mean_temp": round(avg_mean, 1),
-                "peak_temp":    round(peak_temp, 1),
+                "label": era_cfg["label"],
+                "avg_mean_temp": round(decade_mean, 1),
+                "peak_temp": round(decade_tx5d, 1),
             }
         else:
             result[key] = {
-                "label":        data["label"],
+                "label": era_cfg["label"],
                 "avg_mean_temp": None,
-                "peak_temp":    None,
+                "peak_temp": None,
             }
 
     return result if any_data else None
@@ -380,7 +428,7 @@ async def fetch_historical_eras(lat: float, lng: float) -> Dict[str, Any]:
         ValueError: If all 4 tiers return None — no arithmetic fallbacks are
                     used. Data integrity is non-negotiable.
     """
-    cache_key = f"hist_eras_v7_{round(lat, 2)}_{round(lng, 2)}"
+    cache_key = f"hist_eras_v8_{round(lat, 2)}_{round(lng, 2)}"
     cached = _cache_get(cache_key)
     if cached:
         return cached

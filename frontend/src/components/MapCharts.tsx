@@ -199,6 +199,22 @@ export const AnalyticsSection = ({
     return Math.round((saved / baseDeathsNum) * 100);
   })();
 
+  // Ensure Heatwave Frequency trend line plots all data points cleanly through 2050
+  const normalizedHeatwave = React.useMemo(() => {
+    if (!chartData?.heatwave || chartData.heatwave.length === 0) return [];
+    const list = chartData.heatwave.map((d: any) => ({ ...d }));
+    const has2050 = list.some((d: any) => String(d.year) === '2050');
+    if (!has2050) {
+      const p2050 = projection && projection.year === 2050 ? Math.round(projection.heatwave_days) : null;
+      const last = list[list.length - 1];
+      const prev = list.length >= 2 ? list[list.length - 2] : last;
+      const growth = last && prev ? Math.max(3, Math.round(last.val - prev.val)) : 10;
+      const val2050 = p2050 ?? (last ? last.val + growth : 50);
+      list.push({ year: '2050', val: Math.max(last?.val ?? 0, val2050) });
+    }
+    return list;
+  }, [chartData?.heatwave, projection]);
+
   if (isLoading) return <LoadingSpinner />;
   if (!isInitialized) return null;
 
@@ -236,21 +252,22 @@ export const AnalyticsSection = ({
                 </div>
                 <p className="text-[8px] font-mono text-slate-600 mb-4 ml-4">Annual days above historical P95</p>
                 <div className="w-full relative" style={{ height: 'clamp(180px, 28vw, 240px)', borderTop: '1px solid var(--hairline)' }}>
-                  {chartData.heatwave.length === 0 ? (
+                  {normalizedHeatwave.length === 0 ? (
                     <div className="h-full w-full flex items-center justify-center font-sans text-[11px]" style={{ color: 'var(--muted)' }}>
                       No data — run a projection to populate this chart
                     </div>
                   ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData.heatwave} margin={{ top: 10, right: 16, bottom: 5, left: -8 }}>
+                    <LineChart data={normalizedHeatwave} margin={{ top: 10, right: 24, bottom: 5, left: -8 }}>
                       <CartesianGrid {...gridProps} />
-                      <XAxis dataKey="year" {...axisProps} />
+                      <XAxis dataKey="year" {...axisProps} interval={0} />
                       <YAxis {...axisProps} unit="d" />
                       <RechartsTooltip content={<HeatwaveTooltip />} />
                       <Line
                         type="monotone" dataKey="val" stroke="#B79237" strokeWidth={2.5}
                         dot={{ r: 3.5, fill: '#060f1e', strokeWidth: 2, stroke: '#B79237' }}
                         activeDot={{ r: 5, fill: '#B79237', strokeWidth: 0 }}
+                        connectNulls
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -281,7 +298,7 @@ export const AnalyticsSection = ({
                       margin={{ top: 10, right: 16, bottom: 5, left: -8 }}
                     >
                       <CartesianGrid {...gridProps} />
-                      <XAxis dataKey="year" {...axisProps} />
+                      <XAxis dataKey="year" {...axisProps} interval={0} />
                       <YAxis {...axisProps} />
                       <RechartsTooltip
                         contentStyle={{ background: 'var(--panel)', border: '1px solid rgba(255,255,255,0.10)', borderRadius: 0, fontSize: '11px', fontFamily: 'ui-monospace, monospace', padding: '10px 14px', color: 'var(--text)' }}

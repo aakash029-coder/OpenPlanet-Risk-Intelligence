@@ -41,6 +41,16 @@ function SustainedHeatLabel() {
 }
 
 export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPanelProps) {
+  const baseTx5d = parseFloat(historicalEras.era1?.peak_temp ?? '0');
+  const era2Tx5d = parseFloat(historicalEras.era2?.peak_temp ?? '0');
+  const era3Tx5d = parseFloat(historicalEras.era3?.peak_temp ?? '0');
+
+  const delta2 = (era2Tx5d - baseTx5d).toFixed(1);
+  const delta2Formatted = parseFloat(delta2) >= 0 ? `+${delta2}` : delta2;
+
+  const delta3 = (era3Tx5d - baseTx5d).toFixed(1);
+  const delta3Formatted = parseFloat(delta3) >= 0 ? `+${delta3}` : delta3;
+
   return (
     <div className="w-full max-w-[1440px] mt-2 relative overflow-visible animate-fadeIn"
          style={{ border: '1px solid var(--hairline)', background: 'var(--panel)' }}>
@@ -66,7 +76,7 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
               </p>
             </div>
             <span className="text-[9px] font-mono px-2 py-0.5" style={{ color: 'var(--muted)', border: '1px solid var(--hairline)' }}>
-              {historicalEras.era1?.label}
+              {historicalEras.era1?.label || '1995–2004'}
             </span>
           </div>
           <div className="space-y-4">
@@ -83,7 +93,7 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
           </div>
         </div>
 
-        {/* Era 2 — Warming Trend */}
+        {/* Era 2 — Mid-Record */}
         <div className="relative flex flex-col p-5 md:p-7 overflow-visible"
              style={{ borderBottom: '1px solid var(--hairline)', borderLeft: '0px', borderRight: '0px' }}>
           <div className="absolute top-0 left-0 right-0 h-px"
@@ -92,14 +102,19 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--heat-2)' }} />
               <p className="text-[9px] font-mono uppercase tracking-[0.2em] font-bold" style={{ color: 'var(--heat-2)' }}>
-                Warming Trend
+                Mid-Record
               </p>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5"
-                 style={{ border: '1px solid rgba(183,146,55,0.3)', background: 'rgba(183,146,55,0.06)' }}>
-              <span className="text-[9px] font-mono font-bold" style={{ color: 'var(--heat-2)' }}>
-                ▲ +{(parseFloat(historicalEras.era2?.avg_mean_temp ?? '0') - parseFloat(historicalEras.era1?.avg_mean_temp ?? '0')).toFixed(1)}°C
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono px-2 py-0.5" style={{ color: 'var(--muted)', border: '1px solid var(--hairline)' }}>
+                {historicalEras.era2?.label || '2005–2014'}
               </span>
+              <div className="flex items-center gap-1.5 px-2 py-0.5"
+                   style={{ border: '1px solid rgba(183,146,55,0.3)', background: 'rgba(183,146,55,0.06)' }}>
+                <span className="text-[9px] font-mono font-bold" style={{ color: 'var(--heat-2)' }}>
+                  ▲ {delta2Formatted}°C
+                </span>
+              </div>
             </div>
           </div>
           <div className="space-y-4">
@@ -127,11 +142,16 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
                 Current Climate
               </p>
             </div>
-            <div className="flex items-center gap-1.5 px-2 py-0.5"
-                 style={{ border: '1px solid rgba(162,58,48,0.3)', background: 'rgba(162,58,48,0.06)' }}>
-              <span className="text-[9px] font-mono font-bold" style={{ color: 'var(--heat-4)' }}>
-                ▲ +{(parseFloat(historicalEras.era3?.avg_mean_temp ?? '0') - parseFloat(historicalEras.era1?.avg_mean_temp ?? '0')).toFixed(1)}°C
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-mono px-2 py-0.5" style={{ color: 'var(--muted)', border: '1px solid var(--hairline)' }}>
+                {historicalEras.era3?.label || '2015–2024'}
               </span>
+              <div className="flex items-center gap-1.5 px-2 py-0.5"
+                   style={{ border: '1px solid rgba(162,58,48,0.3)', background: 'rgba(162,58,48,0.06)' }}>
+                <span className="text-[9px] font-mono font-bold" style={{ color: 'var(--heat-4)' }}>
+                  ▲ {delta3Formatted}°C
+                </span>
+              </div>
             </div>
           </div>
           <div className="space-y-4">

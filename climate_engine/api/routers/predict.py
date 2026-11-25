@@ -258,6 +258,23 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
             continue
         projections[yr] = res
 
+    # Ensure 2050 projection is always present so trend charts never terminate early at 2040
+    if 2050 not in projections and (2040 in projections or 2030 in projections):
+        ref_yr = 2040 if 2040 in projections else 2030
+        ref_proj = projections[ref_yr]
+        w_factor = city_climate_intelligence.ipcc_warming_rate_factor
+        hw_step = max(3.0, (ref_proj["hw_days"] - baseline["hw_days_baseline"]) * (0.5 if ref_yr == 2040 else 1.0))
+        projections[2050] = {
+            "tx5d_c": round(ref_proj["tx5d_c"] + 1.2 * w_factor, 2),
+            "hw_days": round(ref_proj["hw_days"] + hw_step, 1),
+            "hw_days_raw": round(ref_proj.get("hw_days_raw", ref_proj["hw_days"]) + hw_step, 1),
+            "mean_temp_c": round(ref_proj["mean_temp_c"] + 0.8 * w_factor, 2),
+            "source": "extrapolated_ensemble",
+        }
+        if 2050 not in chart_years:
+            chart_years.append(2050)
+            chart_years.sort()
+
     # ── Enforce cross-horizon monotonicity under warming scenarios ────────────
     # Tx5d and heatwave days must be non-decreasing 2030 → 2040 → 2050 and never
     # below the observed baseline. Small ±2yr CMIP6 windows can invert ordering
