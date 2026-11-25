@@ -101,6 +101,7 @@ async def climate_risk(request: Request, req: ClimateRiskRequest, response: Resp
 
     pop = socio["population"]
     gdp = socio["city_gdp_usd"]
+    gdp_pc = float(socio.get("gdp_per_capita") or (gdp / max(1.0, pop)))
     iso2 = socio.get("country_code", "UN")
     iso3 = _iso2_to_iso3(iso2)
     vuln = socio.get("vulnerability_multiplier", 1.0)
@@ -187,6 +188,7 @@ async def climate_risk(request: Request, req: ClimateRiskRequest, response: Resp
                 t_mean=mean_temp,
                 tx5d=tx5d,
                 hw_days=hw_days,
+                gdp_per_capita=gdp_pc,
             )
 
             cdd = round(max(0.0, mean_temp - 18.0) * hw_days, 1)

@@ -36,7 +36,7 @@ def _build_audit_trail(
     hwf = round(min(hw_days / 365.0, 1.0), 4)
     deaths_result = int(pop * (death_rate / 1000.0) * hwf * af * vuln)
 
-    econ_loss = compute_hybrid_economic_loss(gdp, mean_temp, tx5d, hw_days)
+    econ_loss = compute_hybrid_economic_loss(gdp, mean_temp, tx5d, hw_days, gdp_per_capita=(gdp / max(1.0, pop)))
     wbt_result = _stull_wetbulb(tx5d, rh, zone.zone)
     wbt_display = true_wbt if true_wbt is not None else wbt_result.wbt_celsius
 

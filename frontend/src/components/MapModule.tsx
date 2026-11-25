@@ -423,7 +423,15 @@ export default function MapModule({ onTargetLocked }: { onTargetLocked?: (city: 
             </div>
           )}
         </div>
-        <RightPanel isInitialized={isInitialized} year={Number(year)} isSimulating={isSimulating} mitigatedData={mitigatedData} openAudit={openAudit} />
+        <RightPanel
+          isInitialized={isInitialized}
+          isLoading={isLoading}
+          selectedCity={selectedCity}
+          year={Number(year)}
+          isSimulating={isSimulating}
+          mitigatedData={mitigatedData}
+          openAudit={openAudit}
+        />
       </div>
 
       {isInitialized && historicalEras && <HistoricalErasPanel historicalEras={historicalEras} />}

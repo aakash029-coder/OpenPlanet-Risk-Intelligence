@@ -46,10 +46,14 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
   const era3Tx5d = parseFloat(historicalEras.era3?.peak_temp ?? '0');
 
   const delta2 = (era2Tx5d - baseTx5d).toFixed(1);
-  const delta2Formatted = parseFloat(delta2) >= 0 ? `+${delta2}` : delta2;
+  const delta2Val = parseFloat(delta2);
+  const delta2Icon = delta2Val < 0 ? '▼' : '▲';
+  const delta2Text = `${delta2Icon} ${delta2Val >= 0 ? `+${delta2}` : delta2}°C`;
 
   const delta3 = (era3Tx5d - baseTx5d).toFixed(1);
-  const delta3Formatted = parseFloat(delta3) >= 0 ? `+${delta3}` : delta3;
+  const delta3Val = parseFloat(delta3);
+  const delta3Icon = delta3Val < 0 ? '▼' : '▲';
+  const delta3Text = `${delta3Icon} ${delta3Val >= 0 ? `+${delta3}` : delta3}°C`;
 
   return (
     <div className="w-full max-w-[1440px] mt-2 relative overflow-visible animate-fadeIn"
@@ -112,7 +116,7 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
               <div className="flex items-center gap-1.5 px-2 py-0.5"
                    style={{ border: '1px solid rgba(183,146,55,0.3)', background: 'rgba(183,146,55,0.06)' }}>
                 <span className="text-[9px] font-mono font-bold" style={{ color: 'var(--heat-2)' }}>
-                  ▲ {delta2Formatted}°C
+                  {delta2Text}
                 </span>
               </div>
             </div>
@@ -149,7 +153,7 @@ export default function HistoricalErasPanel({ historicalEras }: HistoricalErasPa
               <div className="flex items-center gap-1.5 px-2 py-0.5"
                    style={{ border: '1px solid rgba(162,58,48,0.3)', background: 'rgba(162,58,48,0.06)' }}>
                 <span className="text-[9px] font-mono font-bold" style={{ color: 'var(--heat-4)' }}>
-                  ▲ {delta3Formatted}°C
+                  {delta3Text}
                 </span>
               </div>
             </div>

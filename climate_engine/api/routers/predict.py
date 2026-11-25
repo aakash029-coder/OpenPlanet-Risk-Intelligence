@@ -187,6 +187,7 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
 
     pop = socio["population"]
     gdp = socio["city_gdp_usd"]
+    gdp_pc = float(socio.get("gdp_per_capita") or (gdp / max(1.0, pop)))
     iso2 = socio.get("country_code", "UN")
     iso3 = _iso2_to_iso3(iso2)
     vuln = socio.get("vulnerability_multiplier", 1.0)
@@ -312,6 +313,7 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
             t_mean=mean_temp,
             tx5d=tx5d,
             hw_days=hw_days,
+            gdp_per_capita=gdp_pc,
         )
         loss_mit = loss * (1.0 - total_cooling * 0.05)
 
@@ -372,6 +374,7 @@ async def predict(request: Request, req: PredictionRequest, response: Response):
         t_mean=mean_temp_tgt,
         tx5d=tx5d,
         hw_days=hw_days_tgt,
+        gdp_per_capita=gdp_pc,
     )
 
     wbt_result_proj: WetBulbResult = _stull_wetbulb(

@@ -134,10 +134,43 @@ def test_economic_loss_monotonic_in_heatwave_days():
 
 
 def test_economic_loss_acclimatized_adaptation_threshold():
-    # Cold city (Yakutsk/London: T_mean <= 13°C) has zero normal-day penalty,
-    # but still experiences acute heatwave shock when Tx5d exceeds local adaptation threshold (>=26°C)
+    # Cold / high-altitude city (e.g. La Paz/Yakutsk: T_mean <= 13°C, Tx5d < 26°C)
+    # maintains a realistic non-zero anomaly floor, while acute heatwave shock scales above adaptation threshold
     cold_base = dict(city_gdp=1e9, t_mean=-4.0, hw_days=25.0)
     mild_summer = physics.compute_hybrid_economic_loss(tx5d=24.0, **cold_base)
     heat_shock = physics.compute_hybrid_economic_loss(tx5d=32.0, **cold_base)
-    assert mild_summer == 0.0
-    assert heat_shock > 0.0
+    assert mild_summer > 0.0
+    assert heat_shock > mild_summer
+
+
+def test_economic_loss_archetype_adjustments():
+    # 1. High-altitude cold city floor (La Paz, Quito, Reykjavik)
+    lapaz_loss = physics.compute_hybrid_economic_loss(
+        city_gdp=20e9, t_mean=10.0, tx5d=22.0, hw_days=30.0
+    )
+    expected_floor = 20e9 * 0.00015 * (30.0 / 365.0)
+    assert abs(lapaz_loss - expected_floor) < 1e-3
+    assert 1e5 < lapaz_loss < 3e6  # ~$0.25M to $3M realistic non-zero floor
+
+    # 2. Tropical high-income indoor adaptation dampener (Singapore, Hong Kong)
+    # T_mean > 24, Tx5d < 36.5, GDP_pc > 40000
+    sg_base = dict(city_gdp=500e9, t_mean=28.0, tx5d=35.0, hw_days=150.0)
+    unadjusted_sg = physics.compute_hybrid_economic_loss(gdp_per_capita=30000, **sg_base)
+    adjusted_sg = physics.compute_hybrid_economic_loss(gdp_per_capita=85000, **sg_base)
+    assert abs(adjusted_sg - unadjusted_sg * 0.38) < 1e-3
+
+    # 3. Untouched cities:
+    # Hot desert city (Dubai: Tx5d=47 > 36.5) -> dampener not triggered
+    dxb_high_pc = physics.compute_hybrid_economic_loss(
+        city_gdp=100e9, t_mean=30.0, tx5d=47.0, hw_days=100.0, gdp_per_capita=60000
+    )
+    dxb_low_pc = physics.compute_hybrid_economic_loss(
+        city_gdp=100e9, t_mean=30.0, tx5d=47.0, hw_days=100.0, gdp_per_capita=30000
+    )
+    assert dxb_high_pc == dxb_low_pc
+
+    # Developing tropical city (Kolkata: GDP_pc=2500 < 40000, Tx5d=42 > 36.5) -> untouched
+    kolkata = physics.compute_hybrid_economic_loss(
+        city_gdp=50e9, t_mean=27.0, tx5d=42.0, hw_days=60.0, gdp_per_capita=2500
+    )
+    assert kolkata > 0

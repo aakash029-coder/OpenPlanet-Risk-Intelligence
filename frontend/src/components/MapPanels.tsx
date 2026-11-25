@@ -501,8 +501,10 @@ const LineageBadge = ({ metadata }: { metadata: { data_lineage: 'empirical_api' 
 };
 
 /* ─── RIGHT PANEL ─── */
-export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, openAudit }: {
+export const RightPanel = ({ isInitialized, isLoading = false, selectedCity, year, isSimulating, mitigatedData, openAudit }: {
   isInitialized: boolean;
+  isLoading?: boolean;
+  selectedCity?: PanelSelectedCity | null;
   year: number;
   isSimulating: boolean;
   mitigatedData: MitigatedData | null;
@@ -510,18 +512,26 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
 }) => {
   const { primaryData, primaryLoading } = useClimateData();
 
+  const isResolving = isLoading || primaryLoading;
+  const isCityMismatch = Boolean(
+    selectedCity?.name && primaryData?.city_name &&
+    !primaryData.city_name.toLowerCase().includes(selectedCity.name.toLowerCase()) &&
+    !selectedCity.name.toLowerCase().includes(primaryData.city_name.toLowerCase())
+  );
+  const showLoading = isResolving || isCityMismatch;
+
   // Always read from the single source of truth — same data as DeepDive and Compare
-  const projection = primaryData?.projections?.find(p => p.year === year) ??
-    (primaryData?.projections?.length
-      ? primaryData.projections.reduce((c, p) => Math.abs(p.year - year) < Math.abs(c.year - year) ? p : c)
-      : null);
+  const projection = (!showLoading && primaryData?.projections?.length)
+    ? (primaryData.projections.find(p => p.year === year) ??
+       primaryData.projections.reduce((c, p) => Math.abs(p.year - year) < Math.abs(c.year - year) ? p : c))
+    : null;
 
   const deaths   = projection ? Math.round(projection.attributable_deaths).toLocaleString() : '--';
   const loss     = projection ? fmtLoss(projection.economic_decay_usd) : '--';
   const heatwave = projection ? Math.round(projection.heatwave_days).toString() : '--';
   const temp     = projection ? projection.peak_tx5d_c.toFixed(1) : '--';
 
-  const isReady = isInitialized && !primaryLoading && projection != null;
+  const isReady = isInitialized && !showLoading && projection != null;
 
   return (
     <div className="w-full md:w-[272px] md:min-w-[272px] flex flex-col md:h-full pointer-events-auto overflow-hidden"
@@ -539,8 +549,11 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
             computed {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
           </span>
         )}
-        {primaryLoading && isInitialized && (
-          <div className="w-3 h-3 border border-white/20 border-t-white/40 rounded-full animate-spin" />
+        {showLoading && isInitialized && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[8px] font-mono text-slate-500 uppercase tracking-widest animate-pulse">Computing...</span>
+            <div className="w-3 h-3 border border-white/20 border-t-white/40 rounded-full animate-spin" />
+          </div>
         )}
       </div>
 
@@ -562,7 +575,12 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               Attributable Deaths
             </span>
             <div>
-              {isSimulating ? (
+              {showLoading ? (
+                <div className="space-y-1.5 py-1">
+                  <div className="h-8 w-28 bg-white/[0.06] animate-pulse rounded" />
+                  <div className="h-2.5 w-20 bg-white/[0.03] animate-pulse rounded" />
+                </div>
+              ) : isSimulating ? (
                 <div className="space-y-0.5">
                   <p className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--muted)' }}>{deaths} <span className="text-[8px]">baseline</span></p>
                   <p className="text-[28px] font-mono font-bold leading-none tabular-nums" style={{ color: 'var(--positive)' }}>↓ {mitigatedData?.deaths || deaths}</p>
@@ -570,7 +588,7 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               ) : (
                 <p className="text-[32px] font-mono font-bold leading-none tabular-nums glow-red" style={{ color: 'var(--heat-4)' }}>{deaths}</p>
               )}
-              {projection && (
+              {!showLoading && projection && (
                 <p className="font-mono text-[8px] tabular-nums mt-1.5" style={{ color: 'var(--muted)' }}>
                   {formatDeathsRange(projection.attributable_deaths)} est/yr
                 </p>
@@ -592,7 +610,12 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               Economic Impact
             </span>
             <div>
-              {isSimulating ? (
+              {showLoading ? (
+                <div className="space-y-1.5 py-1">
+                  <div className="h-7 w-24 bg-white/[0.06] animate-pulse rounded" />
+                  <div className="h-2.5 w-16 bg-white/[0.03] animate-pulse rounded" />
+                </div>
+              ) : isSimulating ? (
                 <div className="space-y-0.5">
                   <p className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--muted)' }}>{loss} <span className="text-[8px]">baseline</span></p>
                   <p className="text-[24px] font-mono font-bold leading-none tabular-nums" style={{ color: 'var(--positive)' }}>↓ {mitigatedData?.loss || loss}</p>
@@ -600,7 +623,7 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               ) : (
                 <p className="text-[28px] font-mono font-bold leading-none tabular-nums glow-amber" style={{ color: 'var(--heat-2)' }}>{loss}</p>
               )}
-              {projection && (
+              {!showLoading && projection && (
                 <p className="font-mono text-[8px] tabular-nums mt-1.5" style={{ color: 'var(--muted)' }}>
                   {formatEconomicRange(projection.economic_decay_usd)}
                 </p>
@@ -622,7 +645,11 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               <span className="text-[8px] font-mono uppercase tracking-widest font-bold flex items-center" style={{ color: 'var(--muted)' }}>
                 Heatwave Days
               </span>
-              {isSimulating ? (
+              {showLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-7 w-20 bg-white/[0.06] animate-pulse rounded" />
+                </div>
+              ) : isSimulating ? (
                 <div className="space-y-0.5">
                   <p className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--muted)' }}>{heatwave}d <span className="text-[8px]">baseline</span></p>
                   <p className="text-[24px] font-mono font-bold leading-none tabular-nums" style={{ color: 'var(--positive)' }}>↓ {mitigatedData?.heatwave || heatwave}d</p>
@@ -630,7 +657,7 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               ) : (
                 <p className="text-[26px] font-mono font-bold leading-none tabular-nums glow-red" style={{ color: 'var(--heat-3)' }}>{heatwave}d</p>
               )}
-              {projection && (
+              {!showLoading && projection && (
                 <p className="font-mono text-[8px] tabular-nums mt-1.5" style={{ color: 'var(--muted)' }}>
                   {Math.round(projection.heatwave_days * 0.82)}–{Math.round(projection.heatwave_days * 1.18)} d/yr
                 </p>
@@ -642,7 +669,11 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               <span className="text-[8px] font-mono uppercase tracking-widest font-bold flex items-center" style={{ color: 'var(--muted)' }}>
                 Peak Tx5d
               </span>
-              {isSimulating ? (
+              {showLoading ? (
+                <div className="space-y-1 py-1">
+                  <div className="h-7 w-20 bg-white/[0.06] animate-pulse rounded" />
+                </div>
+              ) : isSimulating ? (
                 <div className="space-y-0.5">
                   <p className="text-[10px] font-mono tabular-nums" style={{ color: 'var(--muted)' }}>{temp}°C <span className="text-[8px]">baseline</span></p>
                   <p className="text-[24px] font-mono font-bold leading-none tabular-nums" style={{ color: 'var(--positive)' }}>↓ {mitigatedData?.temp || temp}°C</p>
@@ -650,7 +681,7 @@ export const RightPanel = ({ isInitialized, year, isSimulating, mitigatedData, o
               ) : (
                 <p className="text-[26px] font-mono font-bold leading-none tabular-nums glow-amber" style={{ color: 'var(--heat-2)' }}>{temp}°C</p>
               )}
-              {projection && (
+              {!showLoading && projection && (
                 <p className="font-mono text-[8px] tabular-nums mt-1.5" style={{ color: 'var(--muted)' }}>
                   {(projection.peak_tx5d_c - 0.8).toFixed(1)}–{(projection.peak_tx5d_c + 0.8).toFixed(1)}°C
                 </p>
